@@ -1,0 +1,11 @@
+packages:
+  - apps/*
+
+catalog:
+  '@types/node': 24.10.1
+  typescript: 5.9.3
+  zod: 4.1.12
+
+onlyBuiltDependencies:
+  - esbuild
+  - '@huggingface/transformers'

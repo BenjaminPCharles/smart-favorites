@@ -1,0 +1,39 @@
+{
+  "name": "back",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "type-check": "tsc --project tsconfig.json --pretty --noEmit",
+    "lint": "eslint",
+    "lint:fix": "eslint --fix",
+    "dev": "dotenvx run -- tsx watch src/index.ts",
+    "migrate": "dotenvx run -- tsx node_modules/node-pg-migrate/bin/node-pg-migrate up -m src/database/migrations",
+    "migrate:up": "dotenvx run -- tsx node_modules/node-pg-migrate/bin/node-pg-migrate up -m src/database/migrations",
+    "migrate:down": "dotenvx run -- tsx node_modules/node-pg-migrate/bin/node-pg-migrate down -m src/database/migrations",
+    "migrate:create": "dotenvx run -- tsx node_modules/node-pg-migrate/bin/node-pg-migrate create -j ts -m src/database/migrations"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.19.0",
+  "devDependencies": {
+    "@dotenvx/dotenvx": "1.51.1",
+    "@types/node": "catalog:",
+    "@types/node-cron": "3.0.11",
+    "@types/pg": "8.15.6",
+    "node-pg-migrate": "8.0.3",
+    "typescript": "catalog:"
+  },
+  "dependencies": {
+    "@fastify/cors": "11.2.0",
+    "@huggingface/transformers": "3.8.1",
+    "chromadb": "3.1.6",
+    "fastify": "5.6.2",
+    "node-cron": "4.2.1",
+    "openai": "^6.18.0",
+    "pg": "8.16.3",
+    "tsx": "4.20.6",
+    "zod": "catalog:"
+  }
+}

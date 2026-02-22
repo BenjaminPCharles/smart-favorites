@@ -1,0 +1,21 @@
+# Dependencies
+**/node_modules/
+
+# Build outputs
+.turbo/
+dist/
+build/
+.output/
+
+# Environment
+**/.env
+.env.local
+
+# OS
+.DS_Store
+
+# IDE
+.vscode/
+
+# TypeScript cache
+*.tsbuildinfo
