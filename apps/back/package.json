@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "type-check": "tsc --project tsconfig.json --pretty --noEmit",
+    "test:ts": "tsc --project tsconfig.json --pretty --noEmit",
     "lint": "eslint",
     "lint:fix": "eslint --fix",
     "dev": "dotenvx run -- tsx watch src/index.ts",
@@ -28,10 +28,8 @@
   "dependencies": {
     "@fastify/cors": "11.2.0",
     "@huggingface/transformers": "3.8.1",
-    "chromadb": "3.1.6",
     "fastify": "5.6.2",
     "node-cron": "4.2.1",
-    "openai": "^6.18.0",
     "pg": "8.16.3",
     "tsx": "4.20.6",
     "zod": "catalog:"
