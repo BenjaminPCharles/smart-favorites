@@ -1,13 +1,13 @@
 import { EmbeddingService } from '../services/embedding/embedding.service'
 import { HttpService } from '../services/http/http.service'
-import { ChromaConfig } from './chroma.config'
 import { DatabaseConfig } from './database.config'
+import { VectorChunkConfig } from './vector-chunk.config'
 
 export class ServicesContainer {
   // Configs
-  public readonly chromaConfig: ChromaConfig
   public readonly databaseConfig: DatabaseConfig
   public readonly scrapeDatabaseConfig: DatabaseConfig
+  public readonly vectorChunk: VectorChunkConfig
 
   // Services
   public readonly httpService: HttpService
@@ -19,9 +19,9 @@ export class ServicesContainer {
     this.embeddingService = new EmbeddingService()
 
     // Configs
-    this.chromaConfig = new ChromaConfig(this.embeddingService)
     this.databaseConfig = new DatabaseConfig('SERVICE_DB')
     this.scrapeDatabaseConfig = new DatabaseConfig('SCRAPE_DB')
+    this.vectorChunk = new VectorChunkConfig(this.databaseConfig, this.embeddingService)
   }
 }
 

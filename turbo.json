@@ -17,7 +17,7 @@
       "dependsOn": ["^lint"],
       "outputs": []
     },
-    "type-check": {
+    "test:ts": {
       "dependsOn": ["^build"],
       "outputs": []
     },
