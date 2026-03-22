@@ -19,3 +19,5 @@ build/
 
 # TypeScript cache
 *.tsbuildinfo
+
+docs/
