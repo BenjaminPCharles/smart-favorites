@@ -4,10 +4,10 @@ import { SignIn } from '~components/auth/sign-in/SignIn'
 import { SignUp } from '~components/auth/sign-up/SignUp'
 import { SaveFavorite } from '~components/favorite/SaveFavorite'
 import { SearchFavorite } from '~components/favorite/SearchFavorite'
+import { Typography } from '~components/shared/Typography'
 import { checkPrivateKeyValidity } from '~helpers/check-private-key-validity.helper'
 import { Button } from './components/shared/Button'
 import { colors, spacing } from './theme'
-import './style.css'
 
 const styles: Record<string, React.CSSProperties> = {
   container: {
@@ -36,9 +36,10 @@ function IndexPopup(): React.ReactNode {
   const [hasAccount, setHasAccount] = useState<boolean>(false)
   const [hasToGenerateNewKey, setHasToGenerateNewKey] = useState<boolean>(false)
   const [hasKey, setHasKey] = useState<boolean>(false)
-  const [privateKey, setPrivateKey] = useState<string>(() => crypto.randomUUID())
+  const [privateKey, setPrivateKey] = useState<string | undefined>(undefined)
   const [hasAcceptTerms, setHasAcceptTerms] = useState<boolean>(false)
   const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined)
+  const [isGeneratingKey, setIsGeneratingKey] = useState<boolean>(false)
 
   useEffect(() => {
     setErrorMessage(undefined)
@@ -68,10 +69,23 @@ function IndexPopup(): React.ReactNode {
   /**
    * On boarding
    */
-  function handleGenerateKeyClick(): void {
-    setHasKey(false)
-    setHasToGenerateNewKey(true)
+  async function handleGenerateKeyClick(): Promise<void> {
+    setIsGeneratingKey(true)
+    try {
+      if (!privateKey) {
+        const response = await fetch('http://localhost:3000/auth/init', { method: 'POST' })
+        const { token } = await response.json() as { token: string }
+        setPrivateKey(token)
+      }
+
+      setHasKey(false)
+      setHasToGenerateNewKey(true)
+    }
+    finally {
+      setIsGeneratingKey(false)
+    }
   }
+
   function handleAccountAlreadyExistsClick(): void {
     setHasToGenerateNewKey(false)
     setHasKey(true)
@@ -79,7 +93,7 @@ function IndexPopup(): React.ReactNode {
 
   return (
     <div style={styles.container}>
-      {errorMessage ? (<p>{errorMessage}</p>) : null}
+      {errorMessage ? (<Typography variant="code">{errorMessage}</Typography>) : null}
       {hasAccount
         ? (
             <>
@@ -90,7 +104,9 @@ function IndexPopup(): React.ReactNode {
         : (
             <>
               <div style={styles.header}>
-                <Button onClick={handleGenerateKeyClick}>Generate auth key</Button>
+                <Button onClick={handleGenerateKeyClick} disabled={isGeneratingKey}>
+                  {isGeneratingKey ? 'Generating...' : 'Generate auth key'}
+                </Button>
               </div>
               <div style={styles.body}>
                 <Button onClick={handleAccountAlreadyExistsClick}>Already have a key?</Button>

@@ -12,14 +12,28 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
    */
   pgm.createTable('user', {
     id: 'id',
-    uuid: { type: 'uuid', notNull: true, unique: true, default: pgm.func('gen_random_uuid()') },
-    created_at: { type: 'timestamp', notNull: true, default: pgm.func('now()') },
-    updated_at: { type: 'timestamp', notNull: true, default: pgm.func('now()') },
-    email: { type: 'text', notNull: false, unique: true },
-    password: { type: 'text', notNull: false },
-    full_name: { type: 'text', notNull: true },
+    publicId: {
+      type: 'uuid',
+      notNull: true,
+      unique: true,
+      default: pgm.func('gen_random_uuid()'),
+    },
+    secretHash: {
+      type: 'text',
+      notNull: true,
+    },
+    created_at: {
+      type: 'timestamp',
+      notNull: true,
+      default: pgm.func('now()'),
+    },
+    updated_at: {
+      type: 'timestamp',
+      notNull: true,
+      default: pgm.func('now()'),
+    },
   })
-  pgm.createIndex('user', 'email')
+  pgm.createIndex('user', 'publicId')
 
   /**
    * Favorite Type enum

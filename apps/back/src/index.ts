@@ -3,6 +3,8 @@ import process from 'node:process'
 import fastifyCors from '@fastify/cors'
 import Fastify from 'fastify'
 import { servicesContainer } from './config/service.container'
+import { authPlugin } from './plugins/auth.plugin'
+import { dbPlugin } from './plugins/db.plugin'
 import { registerRoutes } from './routes'
 
 // Initialize Fastify
@@ -24,6 +26,10 @@ async function bootstrap(fastify: FastifyInstance): Promise<void> {
     const serviceClient = await servicesContainer.databaseConfig.connect()
     serviceClient.release()
     fastify.log.info('Database connected successfully')
+
+    // Register plugins
+    await fastify.register(dbPlugin)
+    await fastify.register(authPlugin)
 
     // Routes register
     await registerRoutes(fastify)

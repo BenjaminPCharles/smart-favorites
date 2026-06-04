@@ -22,7 +22,7 @@ const styles: Record<string, React.CSSProperties> = {
 }
 
 interface SignUpProps {
-  privateKey: string
+  privateKey: string | undefined
   hasAcceptTerms: boolean
   setHasAcceptTerms: React.Dispatch<React.SetStateAction<boolean>>
 }
@@ -30,16 +30,26 @@ export function SignUp({ privateKey, hasAcceptTerms, setHasAcceptTerms }: SignUp
   function handleAcceptTerms(): void {
     setHasAcceptTerms(prev => !prev)
   }
-  function handleAcceptTermsClick(): void {
-    if (hasAcceptTerms) {
-      browser.storage.local.set({ private_key: privateKey })
+  async function handleAcceptTermsClick(): Promise<void> {
+    if (!hasAcceptTerms) {
+      return
     }
+
+    await browser.storage.local.set({ private_key: privateKey })
+  }
+
+  if (privateKey === undefined) {
+    return (
+      <div style={styles.container}>
+        <Typography variant="helper">Failed to generate your key. Please try again.</Typography>
+      </div>
+    )
   }
 
   return (
     <div style={styles.container}>
       <Typography variant="code">{privateKey}</Typography>
-      <Typography variant="muted">This key is the only way to recover your account. If you lose it, your favorites will be inaccessible.</Typography>
+      <Typography variant="helper">This key is the only way to recover your account. If you lose it, your favorites will be inaccessible.</Typography>
       <label style={styles.checkBox}>
         <input type="checkbox" onClick={handleAcceptTerms} />
         I have safely stored my key.
