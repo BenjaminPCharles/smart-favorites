@@ -1,61 +1,43 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
-import { Buffer } from 'node:buffer'
-import argon2 from 'argon2'
+import { encodeToken, generateSecret, hashSecret } from '../helpers/token.helper'
 
 export function authRoutes(fastify: FastifyInstance): void {
   /**
    * POST /auth/init
-   * Creates a new anonymous user with a generated publicId and secret.
-   * Returns a base64-encoded token (publicId:secret) to be used for subsequent auth.
+   * Creates a new anonymous user and returns its bearer token.
+   * The secret is only ever returned here — the database keeps a hash of it, so
+   * a lost token cannot be recovered. Public route (see auth.plugin.ts), hence
+   * the strict rate limit: it is the only endpoint that writes rows for an
+   * unauthenticated caller.
    */
-  fastify.post('/auth/init', async (_: FastifyRequest, reply: FastifyReply) => {
-    const publicId = crypto.randomUUID()
-    const secret = crypto.randomUUID()
-    const token = Buffer.from(`${publicId}:${secret}`).toString('base64')
+  fastify.post('/auth/init', {
+    config: {
+      rateLimit: {
+        max: 5,
+        timeWindow: '1 hour',
+      },
+    },
+  }, async (_: FastifyRequest, reply: FastifyReply) => {
+    const secret = generateSecret()
 
-    const secretHash = await argon2.hash(secret)
-
-    await fastify.db.query(
-      'INSERT INTO "user" (publicId, secretHash) VALUES ($1, $2)',
-      [publicId, secretHash],
+    const result = await fastify.db.query<{ public_id: string }>(
+      'INSERT INTO "user" (secret_hash) VALUES ($1) RETURNING public_id',
+      [hashSecret(secret)],
     )
+    const row = result.rows[0]
+    if (!row) {
+      return reply.code(500).send({ message: 'Could not create account' })
+    }
 
-    reply.code(201).send({ message: 'ok', token })
+    return reply.code(201).send({ token: encodeToken(row.public_id, secret) })
   })
 
   /**
-   * POST /auth/verify
-   * Verifies a base64-encoded token (publicId:secret).
-   * Looks up the user by publicId and checks the secret against the stored argon2 hash.
-   * Returns 401 if the token is malformed, the user is not found, or the secret is invalid.
+   * GET /auth/verify
+   * Confirms a token is valid. Authentication itself is done by the global
+   * onRequest hook, so reaching this handler already means the token is good.
    */
   fastify.get('/auth/verify', async (request: FastifyRequest, reply: FastifyReply) => {
-    const token = request.getBearerToken()
-    if (!token) {
-      reply.code(401).send({ message: 'Token malformed' })
-      return
-    }
-    const [publicId, secret] = Buffer.from(token, 'base64').toString('utf8').split(':')
-    if (!publicId || !secret) {
-      reply.code(401).send({ message: 'Token malformed' })
-      return
-    }
-
-    const result = await fastify.db.query<{ secretHash: string }>(
-      'SELECT "secretHash" FROM "user" WHERE "publicId" = $1',
-      [publicId],
-    )
-    const user = result.rows[0]
-    if (!user) {
-      reply.code(401).send({ message: 'Unauthorized' })
-      return
-    }
-
-    const valid = await argon2.verify(user.secretHash, secret)
-    if (!valid) {
-      reply.code(401).send({ message: 'Unauthorized' })
-    }
-
-    reply.code(200).send({ message: 'Ok' })
+    return reply.send({ publicId: request.user.publicId })
   })
 }

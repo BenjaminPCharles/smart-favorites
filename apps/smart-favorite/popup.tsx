@@ -5,6 +5,7 @@ import { SignUp } from '~components/auth/sign-up/SignUp'
 import { SaveFavorite } from '~components/favorite/SaveFavorite'
 import { SearchFavorite } from '~components/favorite/SearchFavorite'
 import { Typography } from '~components/shared/Typography'
+import { authInit } from '~helpers/api.helper'
 import { checkPrivateKeyValidity } from '~helpers/check-private-key-validity.helper'
 import { Button } from './components/shared/Button'
 import { colors, spacing } from './theme'
@@ -71,15 +72,18 @@ function IndexPopup(): React.ReactNode {
    */
   async function handleGenerateKeyClick(): Promise<void> {
     setIsGeneratingKey(true)
+    setErrorMessage(undefined)
     try {
+      // Guarded so re-opening the panel does not create a second account
       if (!privateKey) {
-        const response = await fetch('http://localhost:3000/auth/init', { method: 'POST' })
-        const { token } = await response.json() as { token: string }
-        setPrivateKey(token)
+        setPrivateKey(await authInit())
       }
 
       setHasKey(false)
       setHasToGenerateNewKey(true)
+    }
+    catch (error) {
+      setErrorMessage(`Could not create your account: ${error instanceof Error ? error.message : String(error)}`)
     }
     finally {
       setIsGeneratingKey(false)

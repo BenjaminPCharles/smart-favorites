@@ -12,13 +12,13 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
    */
   pgm.createTable('user', {
     id: 'id',
-    publicId: {
+    public_id: {
       type: 'uuid',
       notNull: true,
       unique: true,
       default: pgm.func('gen_random_uuid()'),
     },
-    secretHash: {
+    secret_hash: {
       type: 'text',
       notNull: true,
     },
@@ -33,7 +33,6 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
       default: pgm.func('now()'),
     },
   })
-  pgm.createIndex('user', 'publicId')
 
   /**
    * Favorite Type enum

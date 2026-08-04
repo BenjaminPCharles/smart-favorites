@@ -1,5 +1,7 @@
 import { useState } from 'react'
+import browser from 'webextension-polyfill'
 import { Button } from '~components/shared/Button'
+import { authVerify } from '~helpers/api.helper'
 import { checkPrivateKeyValidity } from '~helpers/check-private-key-validity.helper'
 import { colors, radius, spacing } from '~theme'
 
@@ -29,27 +31,45 @@ interface SignInProps {
 }
 export function SignIn({ setErrorMessage, setHasAccount }: SignInProps): React.ReactNode {
   const [privateKey, setPrivateKey] = useState<string>('')
+  const [isSigningIn, setIsSigningIn] = useState<boolean>(false)
 
   function handleLogin(e: React.ChangeEvent<HTMLInputElement>): void {
     setPrivateKey(e.target.value)
   }
 
-  function handleSignInClick(): void {
+  async function handleSignInClick(): Promise<void> {
+    // Local shape check first, so an obvious typo does not need a round trip
     const validityResult = checkPrivateKeyValidity(privateKey)
     if (validityResult.isValid === false) {
       setErrorMessage(validityResult.errorMessage)
       return
     }
-    // TODO: call backend to verify the key exists
-    // TODO: if valid, save to storage: browser.storage.local.set({ private_key: privateKey })
-    // TODO: if invalid, call setErrorMessage with the backend error
-    setHasAccount(true)
+
+    const key = privateKey.trim()
+    setIsSigningIn(true)
+    try {
+      if (!(await authVerify(key))) {
+        setErrorMessage('This key does not match any account')
+        return
+      }
+
+      await browser.storage.local.set({ private_key: key })
+      setHasAccount(true)
+    }
+    catch (error) {
+      setErrorMessage(`Could not reach the server: ${error instanceof Error ? error.message : String(error)}`)
+    }
+    finally {
+      setIsSigningIn(false)
+    }
   }
 
   return (
     <div style={styles.container}>
       <input style={styles.searchField} type="text" placeholder="Paste your key here" onChange={handleLogin} />
-      <Button variant="primary" fullWidth onClick={handleSignInClick}>→ Sign in</Button>
+      <Button variant="primary" fullWidth onClick={handleSignInClick} disabled={isSigningIn}>
+        {isSigningIn ? 'Signing in...' : '→ Sign in'}
+      </Button>
     </div>
   )
 }
