@@ -14,6 +14,13 @@
         "./*"
       ]
     },
-    "baseUrl": "."
+    "baseUrl": ".",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "useUnknownInCatchVariables": false,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "module": "esnext",
+    "moduleResolution": "bundler"
   }
 }

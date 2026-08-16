@@ -5,12 +5,14 @@
   "main": "index.js",
   "scripts": {
     "test:ts": "tsc --project tsconfig.json --pretty --noEmit",
-    "lint": "eslint",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint --max-warnings 0",
     "lint:fix": "eslint --fix",
     "dev": "dotenvx run -- tsx watch src/index.ts",
-    "migrate": "dotenvx run -- tsx node_modules/node-pg-migrate/bin/node-pg-migrate up -m src/database/migrations",
-    "migrate:up": "dotenvx run -- tsx node_modules/node-pg-migrate/bin/node-pg-migrate up -m src/database/migrations",
-    "migrate:down": "dotenvx run -- tsx node_modules/node-pg-migrate/bin/node-pg-migrate down -m src/database/migrations",
+    "migrate": "pnpm run migrate:up",
+    "migrate:up": "dotenvx run -- sh -c 'PGHOST=$SERVICE_DB_HOST PGPORT=$SERVICE_DB_PORT PGUSER=$SERVICE_DB_USER PGPASSWORD=$SERVICE_DB_PASSWORD PGDATABASE=$SERVICE_DB_NAME tsx node_modules/node-pg-migrate/bin/node-pg-migrate up -m src/database/migrations'",
+    "migrate:down": "dotenvx run -- sh -c 'PGHOST=$SERVICE_DB_HOST PGPORT=$SERVICE_DB_PORT PGUSER=$SERVICE_DB_USER PGPASSWORD=$SERVICE_DB_PASSWORD PGDATABASE=$SERVICE_DB_NAME tsx node_modules/node-pg-migrate/bin/node-pg-migrate down -m src/database/migrations'",
     "migrate:create": "dotenvx run -- tsx node_modules/node-pg-migrate/bin/node-pg-migrate create -j ts -m src/database/migrations"
   },
   "keywords": [],
@@ -20,10 +22,10 @@
   "devDependencies": {
     "@dotenvx/dotenvx": "1.51.1",
     "@types/node": "catalog:",
-    "@types/node-cron": "3.0.11",
     "@types/pg": "8.15.6",
     "node-pg-migrate": "8.0.3",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   },
   "dependencies": {
     "@fastify/cors": "11.2.0",

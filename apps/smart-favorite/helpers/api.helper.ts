@@ -1,119 +1,42 @@
-import browser from 'webextension-polyfill'
+import { clearSession } from '~helpers/auth/session-store.helper'
+import { getSession, renewSession } from '~helpers/auth/session.helper'
+import { API_BASE, ApiError, AuthError, request } from '~helpers/http.helper'
 
-export const API_BASE = process.env.PLASMO_PUBLIC_API_BASE ?? 'http://localhost:3000'
-
-export class AuthError extends Error {
-  constructor() {
-    super('Unauthenticated')
-    this.name = 'AuthError'
-  }
-}
-
-export class ApiError extends Error {
-  constructor(public readonly status: number, message: string) {
-    super(message)
-    this.name = 'ApiError'
-  }
-}
+export { API_BASE, ApiError, AuthError, DeviceMissingError, DeviceRejectedError } from '~helpers/http.helper'
 
 /**
- * Read the response body, tolerating empty ones (204, or an error with no body).
- * @param response
- * @return {Promise<unknown>}
- */
-async function readBody(response: Response): Promise<unknown> {
-  const text = await response.text()
-  if (!text) {
-    return undefined
-  }
-
-  try {
-    return JSON.parse(text) as unknown
-  }
-  catch {
-    return text
-  }
-}
-
-/**
- * Send a request and turn any non-2xx into a thrown error.
- * The server authenticates every protected route itself, so there is no
- * pre-flight /auth/verify call here — a bad token simply comes back as a 401.
- * @param url absolute url
+ * Send an authenticated request, re-authenticating once if the session is refused.
+ *
+ * This is the point that realises "the user never has to sign in again": because the
+ * signing key lives on this device, an expired or revoked session can be replaced
+ * without any user interaction, so a 15-minute TTL costs nothing.
+ *
+ * "Once" is guaranteed structurally rather than by a counter: the retry calls
+ * `request` directly, never this function, so there is no recursion to bound.
+ * @param url path relative to API_BASE
  * @param method
- * @param token bearer token, omitted for public routes
  * @param body
  * @return {Promise<TResponse>}
  */
-async function request<TResponse, TBody = undefined>(url: string, method: string, token?: string, body?: TBody): Promise<TResponse> {
-  const response = await fetch(url, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  })
-
-  const payload = await readBody(response)
-
-  if (response.status === 401) {
-    throw new AuthError()
-  }
-  if (!response.ok) {
-    const message = typeof payload === 'object' && payload !== null && 'message' in payload
-      ? String((payload as { message: unknown }).message)
-      : response.statusText
-    throw new ApiError(response.status, message)
-  }
-
-  return payload as TResponse
-}
-
-/**
- * Read the stored token.
- * @return {Promise<string>}
- * @throws {AuthError} when no token is stored
- */
-async function getStoredToken(): Promise<string> {
-  const result = await browser.storage.local.get('private_key')
-  const token = typeof result.private_key === 'string' ? result.private_key : undefined
-
-  if (!token) {
-    throw new AuthError()
-  }
-
-  return token
-}
-
 async function authenticatedFetch<TResponse, TBody = undefined>(url: string, method: string, body?: TBody): Promise<TResponse> {
-  return request<TResponse, TBody>(`${API_BASE}${url}`, method, await getStoredToken(), body)
-}
+  const session = await getSession()
 
-/**
- * Create a new anonymous account. Public route, no token needed.
- * @return {Promise<string>} the bearer token, shown to the user as their key
- */
-export async function authInit(): Promise<string> {
-  const { token } = await request<{ token: string }>(`${API_BASE}/auth/init`, 'POST')
-  return token
-}
-
-/**
- * Check a token against the server, before it is stored.
- * @param token
- * @return {Promise<boolean>} false when the server rejects it
- */
-export async function authVerify(token: string): Promise<boolean> {
   try {
-    await request<{ publicId: string }>(`${API_BASE}/auth/verify`, 'GET', token)
-    return true
+    return await request<TResponse, TBody>(`${API_BASE}${url}`, method, session.token, body)
   }
   catch (error) {
-    if (error instanceof AuthError) {
-      return false
+    if (!(error instanceof AuthError)) {
+      throw error
     }
-    throw error
+
+    // Revoked, or expired earlier than announced
+    await clearSession()
+    const renewed = await renewSession()
+
+    // A 401 on this replay propagates as AuthError, and a DeviceRejectedError or
+    // DeviceMissingError from the renewal propagates too — both are AuthError
+    // subclasses, so callers that only check `instanceof AuthError` still work.
+    return request<TResponse, TBody>(`${API_BASE}${url}`, method, renewed.token, body)
   }
 }
 
@@ -124,4 +47,5 @@ export const api = {
   patch: <TResponse, TBody>(url: string, body?: TBody) => authenticatedFetch<TResponse, TBody>(url, 'PATCH', body),
   delete: <TResponse>(url: string) => authenticatedFetch<TResponse>(url, 'DELETE'),
   AuthError,
+  ApiError,
 }

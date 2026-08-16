@@ -1,14 +1,17 @@
-import { useEffect, useState } from 'react'
+import type { Storage } from 'webextension-polyfill'
+import type { AuthState } from '~helpers/auth/auth-state.helper'
+import { useCallback, useEffect, useState } from 'react'
 import browser from 'webextension-polyfill'
-import { SignIn } from '~components/auth/sign-in/SignIn'
-import { SignUp } from '~components/auth/sign-up/SignUp'
+import { RestoreDevice } from '~components/auth/restore-device/RestoreDevice'
+import { Welcome } from '~components/auth/welcome/Welcome'
 import { SaveFavorite } from '~components/favorite/SaveFavorite'
 import { SearchFavorite } from '~components/favorite/SearchFavorite'
+import { Callout } from '~components/shared/Callout'
 import { Typography } from '~components/shared/Typography'
-import { authInit } from '~helpers/api.helper'
-import { checkPrivateKeyValidity } from '~helpers/check-private-key-validity.helper'
-import { Button } from './components/shared/Button'
-import { colors, spacing } from './theme'
+import { MASTER_PUBLIC_KEY_STORAGE_KEY } from '~helpers/auth/account-store.helper'
+import { loadVerifiedAuthState } from '~helpers/auth/auth-state.helper'
+import { toErrorMessage } from '~helpers/error.helper'
+import { colors, spacing } from '~theme'
 
 const styles: Record<string, React.CSSProperties> = {
   container: {
@@ -18,107 +21,145 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
     overflow: 'hidden',
   },
-  header: {
-    padding: `${spacing.lg}px ${spacing.xl}px ${spacing.xl}px`,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: spacing.sm,
-  },
-  body: {
-    display: 'flex',
-    alignItems: 'stretch',
-    gap: spacing.sm,
-    padding: `${spacing.lg}px ${spacing.xl}px ${spacing.md}px`,
-    borderBottom: `1px solid ${colors.border}`,
+  message: {
+    padding: `${spacing.md}px ${spacing.xl}px`,
   },
 }
 
+type PopupView
+  = | { name: 'loading' }
+    | { name: 'welcome' }
+    | { name: 'restore', isKnownAccount: boolean }
+    | { name: 'ready' }
+    | { name: 'error', message: string }
+
+/**
+ * Map the persisted auth state to a screen. Pure, so it is testable without React.
+ * @param state
+ * @return {PopupView}
+ */
+export function viewForAuthState(state: AuthState): PopupView {
+  switch (state.status) {
+    case 'device-ready':
+      return { name: 'ready' }
+    case 'device-missing':
+      return { name: 'restore', isKnownAccount: true }
+    case 'no-account':
+      return { name: 'welcome' }
+  }
+}
+
 function IndexPopup(): React.ReactNode {
-  const [hasAccount, setHasAccount] = useState<boolean>(false)
-  const [hasToGenerateNewKey, setHasToGenerateNewKey] = useState<boolean>(false)
-  const [hasKey, setHasKey] = useState<boolean>(false)
-  const [privateKey, setPrivateKey] = useState<string | undefined>(undefined)
-  const [hasAcceptTerms, setHasAcceptTerms] = useState<boolean>(false)
-  const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined)
-  const [isGeneratingKey, setIsGeneratingKey] = useState<boolean>(false)
+  const [view, setView] = useState<PopupView>({ name: 'loading' })
+  // Kept apart from `view` on purpose: a failed save is not a broken popup. Replacing
+  // the whole screen with an error page left the user with no way back except closing
+  // and reopening the popup.
+  const [actionErrorMessage, setActionErrorMessage] = useState<string | undefined>(undefined)
+  // An explicit invalidation token, rather than a dependency on some incidental
+  // piece of state. A child that changes storage calls refresh() and the screen
+  // advances — which is what makes the "onboarding never closes" bug impossible to
+  // reintroduce by adding a state variable and forgetting the dep array.
+  const [reloadToken, setReloadToken] = useState<number>(0)
+
+  const refresh = useCallback((): void => {
+    setReloadToken(token => token + 1)
+  }, [])
 
   useEffect(() => {
-    setErrorMessage(undefined)
+    // The popup unmounts on blur, possibly mid-promise
+    let isCancelled = false
 
-    browser.storage.local.get('private_key').then((result) => {
-      if (!result.private_key) {
-        setHasAccount(false)
-        return
+    // Verified, not just read: a device revoked server-side is invisible to the local
+    // facts, and this is the round trip that turns it into the restore screen
+    loadVerifiedAuthState()
+      .then((state) => {
+        if (!isCancelled) {
+          setView(viewForAuthState(state))
+        }
+      })
+      .catch((error: unknown) => {
+        if (!isCancelled) {
+          setView({ name: 'error', message: toErrorMessage(error) })
+        }
+      })
+
+    return () => {
+      isCancelled = true
+    }
+  }, [reloadToken])
+
+  useEffect(() => {
+    // Onboarding finishes in another context (tabs/onboarding), so pick the account
+    // up without needing the popup to be reopened
+    function handleStorageChanged(changes: Record<string, Storage.StorageChange>, areaName: string): void {
+      if (areaName === 'local' && MASTER_PUBLIC_KEY_STORAGE_KEY in changes) {
+        refresh()
       }
+    }
 
-      // User has a private key — check if it's valid and log in
-      const validityResult = checkPrivateKeyValidity(result.private_key as string)
-      if (validityResult.isValid === false) {
-        setErrorMessage(validityResult.errorMessage)
-        return
-      }
+    browser.storage.onChanged.addListener(handleStorageChanged)
 
-      setHasAccount(true)
-    })
-  }, [hasAcceptTerms, privateKey])
+    return () => {
+      browser.storage.onChanged.removeListener(handleStorageChanged)
+    }
+  }, [refresh])
 
-  function resetBrowserLocalStorage(): void {
-    browser.storage.local.clear()
-    setPrivateKey(undefined)
+  function handleCreateAccountClick(): void {
+    // A tab, not the popup: see tabs/onboarding.tsx for why
+    void browser.tabs.create({ url: browser.runtime.getURL('tabs/onboarding.html') })
+    window.close()
   }
 
-  /**
-   * On boarding
-   */
-  async function handleGenerateKeyClick(): Promise<void> {
-    setIsGeneratingKey(true)
-    setErrorMessage(undefined)
-    try {
-      // Guarded so re-opening the panel does not create a second account
-      if (!privateKey) {
-        setPrivateKey(await authInit())
-      }
-
-      setHasKey(false)
-      setHasToGenerateNewKey(true)
-    }
-    catch (error) {
-      setErrorMessage(`Could not create your account: ${error instanceof Error ? error.message : String(error)}`)
-    }
-    finally {
-      setIsGeneratingKey(false)
-    }
+  if (view.name === 'loading') {
+    return (
+      <div style={styles.container}>
+        <div style={styles.message}>
+          <Typography variant="helper">Loading...</Typography>
+        </div>
+      </div>
+    )
   }
 
-  function handleAccountAlreadyExistsClick(): void {
-    setHasToGenerateNewKey(false)
-    setHasKey(true)
+  if (view.name === 'error') {
+    return (
+      <div style={styles.container}>
+        <div style={styles.message}>
+          <Callout variant="danger">{view.message}</Callout>
+        </div>
+      </div>
+    )
+  }
+
+  if (view.name === 'welcome') {
+    return (
+      <div style={styles.container}>
+        <Welcome
+          onCreateAccountClick={handleCreateAccountClick}
+          onRestoreClick={() => setView({ name: 'restore', isKnownAccount: false })}
+        />
+      </div>
+    )
+  }
+
+  if (view.name === 'restore') {
+    return (
+      <div style={styles.container}>
+        <RestoreDevice isKnownAccount={view.isKnownAccount} onRestored={refresh} />
+      </div>
+    )
   }
 
   return (
     <div style={styles.container}>
-      {errorMessage ? (<Typography variant="code">{errorMessage}</Typography>) : null}
-      {hasAccount
+      {actionErrorMessage
         ? (
-            <>
-              <SaveFavorite setErrorMessage={setErrorMessage} />
-              <SearchFavorite />
-            </>
+            <div style={styles.message}>
+              <Callout variant="danger">{actionErrorMessage}</Callout>
+            </div>
           )
-        : (
-            <>
-              <div style={styles.header}>
-                <Button onClick={handleGenerateKeyClick} disabled={isGeneratingKey}>
-                  {isGeneratingKey ? 'Generating...' : 'Generate auth key'}
-                </Button>
-              </div>
-              <div style={styles.body}>
-                <Button onClick={handleAccountAlreadyExistsClick}>Already have a key?</Button>
-              </div>
-              {hasToGenerateNewKey && !hasKey ? <SignUp privateKey={privateKey} hasAcceptTerms={hasAcceptTerms} setHasAcceptTerms={setHasAcceptTerms} /> : null}
-              {!hasToGenerateNewKey && hasKey ? <SignIn setErrorMessage={setErrorMessage} setHasAccount={setHasAccount} /> : null}
-            </>
-          )}
+        : null}
+      <SaveFavorite setErrorMessage={setActionErrorMessage} />
+      <SearchFavorite />
     </div>
   )
 }

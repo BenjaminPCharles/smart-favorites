@@ -11,6 +11,10 @@ export default antfu({
   // You can also pass a function to modify the default ignores
   ignores: [
     '**/fixtures',
+    // Plasmo-generated entrypoints. Ignored by the app's own .gitignore, but that
+    // only applies when eslint runs with the app as cwd — this makes the root
+    // `pnpm lint` work too.
+    '**/.plasmo/**',
     // ...globs
   ],
 
@@ -30,4 +34,14 @@ export default antfu({
   // Disable jsonc and yaml support
   jsonc: false,
   yaml: false,
+}, {
+  files: ['apps/smart-favorite/**/*.{ts,tsx}'],
+  name: 'smart-favorite/browser',
+  rules: {
+    // Plasmo statically replaces process.env.PLASMO_PUBLIC_* at build time; there
+    // is no `node:process` to import in a browser bundle.
+    // `node/prefer-global/buffer` is deliberately left on: it is what keeps the
+    // base64url helpers from regressing to Buffer, which does not exist here.
+    'node/prefer-global/process': 'off',
+  },
 })

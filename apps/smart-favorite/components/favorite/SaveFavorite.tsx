@@ -12,11 +12,22 @@ const styles: Record<string, React.CSSProperties> = {
   },
 }
 
+/**
+ * Every field of a browser tab is optional in the API, and a favorite is
+ * meaningless without a url — so `url` is the one the caller guards on.
+ */
+interface SavedTab {
+  title: string | undefined
+  favIconUrl: string | undefined
+  url: string
+  lastAccessed: number | undefined
+}
+
 interface SaveFavoriteProps {
   setErrorMessage: (message: string | undefined) => void
 }
 export function SaveFavorite({ setErrorMessage }: SaveFavoriteProps): React.ReactNode {
-  const [_data, setData] = useState<{ title: string, favIconUrl: string, url: string, lastAccessed: number }>(undefined)
+  const [_data, setData] = useState<SavedTab | undefined>(undefined)
 
   async function handleSaveFavoriteClick(): Promise<void> {
     try {
@@ -24,14 +35,16 @@ export function SaveFavorite({ setErrorMessage }: SaveFavoriteProps): React.Reac
         active: true,
         currentWindow: true,
       })
-      if (!tabs[0]) {
+      const tab = tabs[0]
+      if (!tab?.url) {
         return
       }
-      const { title, url, favIconUrl, lastAccessed } = tabs[0]
+
+      const { title, url, favIconUrl, lastAccessed } = tab
       setData({ title, url, favIconUrl, lastAccessed })
     }
     catch (error) {
-      setErrorMessage(`Extension cannot access your browser: ${error.message}`)
+      setErrorMessage(`Extension cannot access your browser: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
 

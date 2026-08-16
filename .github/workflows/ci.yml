@@ -1,0 +1,32 @@
+name: ci
+
+on:
+  push:
+    branches: [main, master, dev]
+  pull_request:
+
+jobs:
+  # The job name is the status check context, and `ci/tests` is what the branch
+  # ruleset requires (.github/rulesets/01-ci-and-branch-integrity.json).
+  # Renaming this job blocks every PR.
+  tests:
+    name: ci/tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm lint
+
+      - run: pnpm test:ts
+
+      - run: pnpm test
