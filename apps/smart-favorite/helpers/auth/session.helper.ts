@@ -6,15 +6,12 @@ import { signWithDeviceKey } from '~helpers/crypto/device-key.helper'
 import { buildSessionMessage } from '~helpers/crypto/signed-message.helper'
 import { DeviceMissingError, DeviceRejectedError } from '~helpers/http.helper'
 
-/** Renew a little early, so the common path never wastes a 401. */
+/** Renew slightly early so the common path doesn't burn a 401 first. */
 const RENEWAL_SKEW_MS = 30_000
 
 let inFlightRenewal: Promise<Session> | undefined
 
-/**
- * Sign a fresh challenge and store the resulting session.
- * @return {Promise<Session>}
- */
+/** Signs a fresh challenge and stores the session that comes back. */
 async function createSession(): Promise<Session> {
   const deviceKey = await readDeviceKey()
   if (!deviceKey) {
@@ -33,7 +30,7 @@ async function createSession(): Promise<Session> {
       signature,
     })
 
-    // Relative expiry, so a skewed local clock cannot make a live session look dead
+    // Relative expiry, a skewed local clock shouldn't make a live session look dead
     const session: Session = { token: sessionToken, expiresAt: Date.now() + expiresIn * 1000 }
     await writeSession(session)
 
@@ -49,19 +46,9 @@ async function createSession(): Promise<Session> {
 }
 
 /**
- * Drop the local key the server has just refused.
- *
- * This is what closes the loop between server-side revocation and the UI. The stored
- * auth state is derived from local facts only, so without this the extension keeps
- * reading `device-ready` for a key that is dead server-side: every call 401s, the
- * restore screen is never reached, and the user has no way out short of clearing the
- * extension's storage. Deleting the key makes the next loadAuthState return
- * `device-missing`, which is exactly the state that offers re-authorisation.
- *
- * Deliberately not clearing `master_public_key`: it is not secret, it is derivable
- * from the 12 words anyway, and keeping it is what lets the restore screen say
- * "authorise this browser again" instead of "restore your account".
- * @return {Promise<void>}
+ * Closes the loop between a server-side revocation and the UI, otherwise we keep
+ * saying `device-ready` for a dead key. master_public_key stays: it isn't secret,
+ * and it's what lets the screen say "authorise again" not "restore your account".
  */
 async function forgetDevice(): Promise<void> {
   await deleteDeviceKey()
@@ -69,17 +56,9 @@ async function forgetDevice(): Promise<void> {
 }
 
 /**
- * Re-authenticate this device.
- *
- * Concurrent callers share one in-flight attempt, so five simultaneous requests
- * cause one challenge/session pair rather than five. The `.finally` that clears the
- * handle is what makes a *failed* renewal retryable — without it, one network blip
- * would poison every later call for the lifetime of this context.
- *
- * Cross-context stampedes (popup and onboarding tab renewing at once) are
- * deliberately not guarded: /auth/challenge is cheap, the server allows several
- * live sessions per device, and last-writer-wins leaves a valid token either way.
- * @return {Promise<Session>}
+ * Concurrent callers share one in-flight attempt. The `.finally` is what makes a
+ * failed renewal retryable, without it one blip poisons every later call.
+ * Cross-context stampedes aren't guarded, /auth/challenge is cheap.
  */
 export async function renewSession(): Promise<Session> {
   inFlightRenewal ??= createSession().finally(() => {
@@ -89,10 +68,7 @@ export async function renewSession(): Promise<Session> {
   return inFlightRenewal
 }
 
-/**
- * Return a usable session token, renewing first if it is gone or about to expire.
- * @return {Promise<Session>}
- */
+/** A usable session, renewing first if the stored one is gone or nearly expired. */
 export async function getSession(): Promise<Session> {
   const stored = await readSession()
   if (stored && stored.expiresAt - Date.now() > RENEWAL_SKEW_MS) {

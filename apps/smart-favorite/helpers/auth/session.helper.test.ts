@@ -33,10 +33,7 @@ const { DeviceMissingError, DeviceRejectedError } = await import('~helpers/http.
 
 const SESSION_TTL_SECONDS = 900
 
-/**
- * A real P-256 key, so signWithDeviceKey is exercised rather than stubbed.
- * @return {Promise<StoredDeviceKey>}
- */
+/** A real P-256 key, so signWithDeviceKey runs for real instead of being stubbed. */
 async function createRealDeviceKey(): Promise<StoredDeviceKey> {
   const keyPair = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign', 'verify'])
   const spki = await crypto.subtle.exportKey('spki', keyPair.publicKey)
@@ -48,10 +45,7 @@ async function createRealDeviceKey(): Promise<StoredDeviceKey> {
   }
 }
 
-/**
- * Stub fetch so /auth/challenge and /auth/session always succeed.
- * @return {ReturnType<typeof vi.fn>}
- */
+/** Stubs fetch so /auth/challenge and /auth/session always succeed. */
 function stubHappyFetch(): ReturnType<typeof vi.fn> {
   let issued = 0
   const fetchMock = vi.fn(async (url: string) => {
@@ -89,7 +83,7 @@ describe('session.helper', () => {
 
   it('renews pre-emptively inside the skew window', async () => {
     const fetchMock = stubHappyFetch()
-    // Still valid for 10 seconds, which is inside the 30 second skew
+    // 10 seconds left, inside the 30 second skew
     await writeSession({ token: 'nearly-dead', expiresAt: Date.now() + 10_000 })
 
     expect((await getSession()).token).toBe('token-1')
@@ -107,8 +101,8 @@ describe('session.helper', () => {
   })
 
   it('lets the next call retry after a failed renewal', async () => {
-    // The regression test for the `.finally` that clears inFlightRenewal: without it
-    // one network blip would poison every later call in this context.
+    // Regression test for the `.finally` clearing inFlightRenewal. Without it one
+    // network blip poisons every later call in this context.
     const fetchMock = vi.fn(async () => new Response('', { status: 500 }))
     vi.stubGlobal('fetch', fetchMock)
 
@@ -125,8 +119,8 @@ describe('session.helper', () => {
   })
 
   it('forgets a refused key, so the UI can offer re-authorisation', async () => {
-    // Without this the local state keeps saying `device-ready` for a key that is dead
-    // server-side, and the restore screen is unreachable
+    // Without this the local state keeps saying `device-ready` for a key that's dead
+    // server-side, and the restore screen can't be reached
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ message: 'Unauthorized' }), { status: 401 })))
     await writeSession({ token: 'stale', expiresAt: Date.now() + 600_000 })
 

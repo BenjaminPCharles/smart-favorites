@@ -33,11 +33,7 @@ type PopupView
     | { name: 'ready' }
     | { name: 'error', message: string }
 
-/**
- * Map the persisted auth state to a screen. Pure, so it is testable without React.
- * @param state
- * @return {PopupView}
- */
+/** Auth state to screen. Pure, so it's testable without React. */
 export function viewForAuthState(state: AuthState): PopupView {
   switch (state.status) {
     case 'device-ready':
@@ -51,14 +47,13 @@ export function viewForAuthState(state: AuthState): PopupView {
 
 function IndexPopup(): React.ReactNode {
   const [view, setView] = useState<PopupView>({ name: 'loading' })
-  // Kept apart from `view` on purpose: a failed save is not a broken popup. Replacing
-  // the whole screen with an error page left the user with no way back except closing
-  // and reopening the popup.
+  // Separate from `view` because a failed save isn't a broken popup. Replacing the
+  // whole screen with an error page left users with no way back other than closing
+  // and reopening.
   const [actionErrorMessage, setActionErrorMessage] = useState<string | undefined>(undefined)
-  // An explicit invalidation token, rather than a dependency on some incidental
-  // piece of state. A child that changes storage calls refresh() and the screen
-  // advances — which is what makes the "onboarding never closes" bug impossible to
-  // reintroduce by adding a state variable and forgetting the dep array.
+  // Explicit invalidation token rather than depending on some incidental state. A
+  // child that changes storage calls refresh() and the screen moves on. Stops the
+  // "onboarding never closes" bug coming back via a forgotten dep array.
   const [reloadToken, setReloadToken] = useState<number>(0)
 
   const refresh = useCallback((): void => {
@@ -69,8 +64,8 @@ function IndexPopup(): React.ReactNode {
     // The popup unmounts on blur, possibly mid-promise
     let isCancelled = false
 
-    // Verified, not just read: a device revoked server-side is invisible to the local
-    // facts, and this is the round trip that turns it into the restore screen
+    // Verified and not just read. A device revoked server-side is invisible to the
+    // local facts, this round trip is what turns it into the restore screen
     loadVerifiedAuthState()
       .then((state) => {
         if (!isCancelled) {
@@ -89,8 +84,8 @@ function IndexPopup(): React.ReactNode {
   }, [reloadToken])
 
   useEffect(() => {
-    // Onboarding finishes in another context (tabs/onboarding), so pick the account
-    // up without needing the popup to be reopened
+    // Onboarding finishes in another context (tabs/onboarding), so pick the account up
+    // without making the user reopen the popup
     function handleStorageChanged(changes: Record<string, Storage.StorageChange>, areaName: string): void {
       if (areaName === 'local' && MASTER_PUBLIC_KEY_STORAGE_KEY in changes) {
         refresh()
@@ -105,7 +100,7 @@ function IndexPopup(): React.ReactNode {
   }, [refresh])
 
   function handleCreateAccountClick(): void {
-    // A tab, not the popup: see tabs/onboarding.tsx for why
+    // A tab and not the popup, see tabs/onboarding.tsx for why
     void browser.tabs.create({ url: browser.runtime.getURL('tabs/onboarding.html') })
     window.close()
   }

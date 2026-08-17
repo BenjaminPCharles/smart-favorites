@@ -17,12 +17,9 @@ interface WelcomeProps {
 }
 
 /**
- * Both buttons are always shown, never branched on stored state.
- *
- * The master public key is derivable from the 12 words, so recovery needs nothing
- * local. If the write after /auth/init were ever lost, the worst outcome is that the
- * user takes the second button instead of the first — which works. That is what
- * removes every ordering window from account creation.
+ * Both buttons always show, never branched on stored state. Recovery needs nothing
+ * local, so if the write after /auth/init got lost the worst case is the user takes
+ * the second button instead of the first, which works.
  */
 export function Welcome({ onCreateAccountClick, onRestoreClick }: WelcomeProps): React.ReactNode {
   return (

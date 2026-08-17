@@ -2,7 +2,7 @@ import { colors, fontSizes, radius, spacing } from '../../theme'
 
 interface InputProps {
   value: string
-  /** Receives the value, not the event — same plain-props style as Button. */
+  /** Gets the value, not the event. Same plain-props style as Button. */
   onChange: (value: string) => void
   placeholder?: string
   ariaLabel?: string
@@ -53,8 +53,8 @@ export function Input({
     ...(multiline ? { resize: 'vertical', lineHeight: 1.6 } : {}),
   }
 
-  // Recovery words must never be autocompleted, capitalised or spellchecked: the
-  // browser guessing at them is worse than useless here
+  // No autocomplete, capitalisation or spellcheck on recovery words. The browser
+  // guessing at them is worse than useless
   const sharedProps = {
     value,
     placeholder,

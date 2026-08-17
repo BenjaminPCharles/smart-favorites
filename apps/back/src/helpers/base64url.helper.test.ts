@@ -13,10 +13,9 @@ describe('base64url.helper', () => {
   })
 
   it('rejects a non-canonical encoding of the right byte length', () => {
-    // Both strings decode to the same 32 zero bytes: 43 base64url chars carry 258
-    // bits, and the 2 unused trailing bits are ignored by the decoder. This is the
-    // regression test for the malleability that would let one key pair own two
-    // accounts — note that z.base64url().length(43) accepts both.
+    // Both decode to the same 32 zero bytes, and z.base64url().length(43) takes
+    // both. Regression test for the malleability that lets one keypair own two
+    // accounts.
     expect(Buffer.from(`${'A'.repeat(42)}B`, 'base64url')).toHaveLength(32)
     expect(decodeCanonicalBase64url('A'.repeat(43), 32)).not.toBeNull()
     expect(decodeCanonicalBase64url(`${'A'.repeat(42)}B`, 32)).toBeNull()
@@ -31,7 +30,7 @@ describe('base64url.helper', () => {
     const bytes = randomBytes(32)
     const standard = bytes.toString('base64')
 
-    // Only meaningful when the sample actually contains a non-url-safe character
+    // Only meaningful if the sample happens to contain a non-url-safe char
     if (/[+/]/.test(standard)) {
       expect(decodeCanonicalBase64url(standard.replace(/=+$/, ''), 32)).toBeNull()
     }

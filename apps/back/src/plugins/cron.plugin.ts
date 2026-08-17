@@ -3,16 +3,13 @@ import fp from 'fastify-plugin'
 import cron from 'node-cron'
 import { purgeExpiredChallenges, purgeExpiredSessions } from '../helpers/auth-challenge.helper'
 
-/** Often enough that the tables stay small, rarely enough to be invisible. */
+/** Often enough to keep the tables small, rare enough to go unnoticed. */
 const PURGE_SCHEDULE = '*/5 * * * *'
 
 /**
- * Delete auth rows that can no longer be used.
- *
- * Both statements are idempotent and take no lock worth mentioning, so several
- * instances running this concurrently is harmless — no leader election needed.
- * This is also the backstop that bounds auth_challenge regardless of how well the
- * per-process rate limit holds.
+ * Both statements are idempotent and take no meaningful lock, so concurrent
+ * instances are fine and there's no leader election to do. Also the backstop that
+ * bounds auth_challenge whatever the per-process rate limit does.
  */
 export const cronPlugin = fp(async (fastify: FastifyInstance) => {
   const task = cron.schedule(PURGE_SCHEDULE, async () => {
@@ -22,7 +19,7 @@ export const cronPlugin = fp(async (fastify: FastifyInstance) => {
       fastify.log.debug({ challenges, sessions }, 'Auth cleanup')
     }
     catch (error) {
-      // A failed purge must never take the server down
+      // A failed purge must not take the server down
       fastify.log.error({ err: error }, 'Auth cleanup failed')
     }
   }, { noOverlap: true })

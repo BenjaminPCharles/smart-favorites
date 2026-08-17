@@ -1,11 +1,7 @@
 import type { Pool } from 'pg'
 import { CHALLENGE_TTL_SECONDS, generateNonce } from './session-token.helper'
 
-/**
- * What a nonce may be spent on. Bound at issuance and matched at consumption, so
- * nonce-level domain separation mirrors the message-level prefixes instead of
- * relying on them.
- */
+/** Bound at issuance, matched at consumption. Domain separation at the nonce level. */
 export type ChallengePurpose = 'session' | 'device-register'
 
 export interface IssuedChallenge {
@@ -14,22 +10,12 @@ export interface IssuedChallenge {
 }
 
 /**
- * Issue a nonce bound to a public key and a purpose.
- *
- * The key is deliberately never looked up: a 404 for an unknown key would be a
- * public-key enumeration oracle, and would be pointless anyway since a nonce is
- * worthless without the matching private key. An unknown key surfaces one step
- * later, as a uniform 401.
- * @param db
- * @param publicKey
- * @param purpose
- * @return {Promise<IssuedChallenge>}
+ * We never check the key exists. A 404 on an unknown key would let anyone enumerate
+ * public keys, and a nonce is useless without the private half. Fails later as a 401.
  */
 export async function issueChallenge(db: Pool, publicKey: string, purpose: ChallengePurpose): Promise<IssuedChallenge> {
-  // make_interval with a bound parameter rather than an interpolated literal: the TTL
-  // is a constant today, so nothing is injectable — but this is the one shape in the
-  // codebase that would quietly become an injection the day it comes from the env or
-  // a request, and the parameterised form costs nothing.
+  // TTL bound as a parameter, not interpolated. Constant today, but this is the one
+  // query that becomes an injection the day the value comes from the env.
   const result = await db.query<{ nonce: string, expires_at: Date }>(
     `INSERT INTO auth_challenge (nonce, public_key, purpose, expires_at)
      VALUES ($1, $2, $3, now() + make_interval(secs => $4))
@@ -46,18 +32,9 @@ export async function issueChallenge(db: Pool, publicKey: string, purpose: Chall
 }
 
 /**
- * Spend a nonce.
- *
- * A single statement, so the check and the mark are atomic: a concurrent duplicate
- * blocks on the row lock, re-evaluates the WHERE clause once released, sees used_at
- * set and matches nothing. All four failure modes — unknown, already used, expired,
- * bound to another key or purpose — collapse into one `false`, so the caller has no
- * way to tell the client which one it was.
- * @param db
- * @param nonce
- * @param publicKey the key the challenge was issued for
- * @param purpose
- * @return {Promise<boolean>} false when the nonce cannot be spent
+ * One statement, so check and mark are atomic: a concurrent duplicate blocks on the
+ * row lock then matches nothing. Unknown, used, expired and wrong key/purpose all
+ * return the same false, so callers can't leak which it was.
  */
 export async function consumeChallenge(db: Pool, nonce: string, publicKey: string, purpose: ChallengePurpose): Promise<boolean> {
   const result = await db.query(
@@ -76,13 +53,8 @@ export async function consumeChallenge(db: Pool, nonce: string, publicKey: strin
 }
 
 /**
- * Delete challenges that can no longer be spent.
- *
- * The grace period keeps rows readable while debugging. Deleting an expired nonce
- * is safe whether or not it was used: consumption requires the row to exist, so a
- * missing row is a refusal.
- * @param db
- * @return {Promise<number>} rows deleted
+ * Delete challenges that can no longer be spent. The 5 minute grace period just
+ * keeps rows around long enough to be useful when debugging.
  */
 export async function purgeExpiredChallenges(db: Pool): Promise<number> {
   const result = await db.query(
@@ -92,12 +64,7 @@ export async function purgeExpiredChallenges(db: Pool): Promise<number> {
   return result.rowCount ?? 0
 }
 
-/**
- * Delete sessions that can no longer be used. Without this, user_session grows by
- * one row per silent renewal, forever.
- * @param db
- * @return {Promise<number>} rows deleted
- */
+/** Without this, user_session grows by one row per silent renewal, forever. */
 export async function purgeExpiredSessions(db: Pool): Promise<number> {
   const result = await db.query(
     'DELETE FROM user_session WHERE expires_at < now() - interval \'1 hour\' OR revoked_at IS NOT NULL',

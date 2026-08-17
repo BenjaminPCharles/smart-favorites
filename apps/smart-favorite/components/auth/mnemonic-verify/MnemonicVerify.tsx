@@ -6,7 +6,7 @@ import { Typography } from '~components/shared/Typography'
 import { BACKUP_CHECK_WORD_COUNT, pickBackupCheckIndices, verifyBackupWords } from '~helpers/auth/mnemonic.helper'
 import { spacing } from '~theme'
 
-/** After this many misses, offer the phrase again rather than let them guess. */
+/** After this many misses, show the phrase again rather than let them keep guessing. */
 const ATTEMPTS_BEFORE_OFFERING_REVEAL = 3
 
 const styles: Record<string, React.CSSProperties> = {
@@ -30,7 +30,7 @@ interface MnemonicVerifyProps {
 }
 
 export function MnemonicVerify({ mnemonic, onVerified, onShowAgain }: MnemonicVerifyProps): React.ReactNode {
-  // A lazy initialiser, so a re-render never reshuffles the question mid-answer
+  // Lazy initialiser, otherwise a re-render reshuffles the question mid-answer
   const [indices] = useState<number[]>(() => pickBackupCheckIndices())
   const [answers, setAnswers] = useState<string[]>(() => Array.from({ length: BACKUP_CHECK_WORD_COUNT }).fill('') as string[])
   const [invalidIndices, setInvalidIndices] = useState<number[]>([])
@@ -88,8 +88,8 @@ export function MnemonicVerify({ mnemonic, onVerified, onShowAgain }: MnemonicVe
         → Create my account
       </Button>
 
-      {/* Unlimited retries: this is a typing test, not a security boundary — locking
-          someone out here would only destroy an account that does not exist yet */}
+      {/* Unlimited retries. This is a typing test, not a security boundary, and
+          locking someone out here would only kill an account that doesn't exist yet */}
       {attempts >= ATTEMPTS_BEFORE_OFFERING_REVEAL
         ? <Button onClick={onShowAgain}>Show my words again</Button>
         : null}

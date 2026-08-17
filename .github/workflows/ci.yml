@@ -6,9 +6,9 @@ on:
   pull_request:
 
 jobs:
-  # The job name is the status check context, and `ci/tests` is what the branch
-  # ruleset requires (.github/rulesets/01-ci-and-branch-integrity.json).
-  # Renaming this job blocks every PR.
+  # The job name is the status check context, and the branch ruleset requires
+  # `ci/tests` (.github/rulesets/01-ci-and-branch-integrity.json).
+  # Rename this job and every PR is blocked.
   tests:
     name: ci/tests
     runs-on: ubuntu-latest

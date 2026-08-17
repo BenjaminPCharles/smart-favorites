@@ -6,12 +6,12 @@ export interface AuthenticatedUser {
   id: number
   publicId: string
   /**
-   * The device the session belongs to. Selected here because it is what makes a
-   * compromise attributable, and what a per-device revocation screen needs.
+   * Which device this session belongs to. Makes a compromise attributable, and the
+   * per-device revocation screen needs it.
    */
   deviceId: number
   deviceUuid: string
-  /** The session itself, so it can be revoked without a second lookup. */
+  /** Kept so a session can be revoked without a second lookup. */
   sessionId: number
 }
 
@@ -19,22 +19,18 @@ declare module 'fastify' {
   interface FastifyRequest {
     getBearerToken: () => string | null
     /**
-     * Typed as always present because the fail-closed hook below rejects every
-     * request that reaches a non-public handler without a valid token — same
-     * convention as @fastify/jwt. It is actually null inside PUBLIC_ROUTES
-     * handlers, which must not read it.
+     * Non-nullable because the hook rejects any request reaching a non-public
+     * handler without a token, same convention as @fastify/jwt. It really is null
+     * inside PUBLIC_ROUTES handlers, so don't read it there.
      */
     user: AuthenticatedUser
   }
 }
 
 /**
- * Routes reachable without a session token, matched on the registered route
- * pattern. Everything else is authenticated: the hook is fail-closed, so a new
- * route is protected unless it is explicitly listed here.
- *
- * The four /auth routes are public because a signature *is* their authentication —
- * their caller has no session yet, by definition.
+ * Reachable without a session token. The hook is fail-closed, so a new route is
+ * protected until listed here. /auth is public because a signature *is* its
+ * authentication, the caller has no session yet.
  */
 const PUBLIC_ROUTES = new Set([
   'GET /',
@@ -66,7 +62,7 @@ export const authPlugin = fp(async (fastify: FastifyInstance) => {
       return
     }
 
-    // No route matched — let Fastify answer 404 rather than 401
+    // No route matched, let Fastify answer 404 rather than 401
     const routeUrl = request.routeOptions.url
     if (!routeUrl) {
       return
@@ -78,9 +74,8 @@ export const authPlugin = fp(async (fastify: FastifyInstance) => {
 
     const user = await resolveUser(fastify, request)
     if (!user) {
-      // Uniform response: never distinguish absent token / unknown session /
-      // expired session / revoked device, that would turn the endpoint into an
-      // oracle.
+      // Same answer for missing token, unknown session, expired session and revoked
+      // device. Telling them apart makes this an oracle.
       await reply.code(401).send({ message: 'Unauthorized' })
       return
     }
@@ -90,10 +85,7 @@ export const authPlugin = fp(async (fastify: FastifyInstance) => {
 })
 
 /**
- * Resolve the authenticated user from the request's session token.
- * @param fastify
- * @param request
- * @return {Promise<AuthenticatedUser | null>} null when the token is absent, unknown, expired, or its device is revoked
+ * Null when the token is missing, unknown, expired, or its device was revoked.
  */
 async function resolveUser(fastify: FastifyInstance, request: FastifyRequest): Promise<AuthenticatedUser | null> {
   const token = request.getBearerToken()
@@ -101,18 +93,12 @@ async function resolveUser(fastify: FastifyInstance, request: FastifyRequest): P
     return null
   }
 
-  // One round trip on the hot path. A data-modifying CTE runs to completion whether
-  // or not the outer query reads it, so `touched` needs no reference.
-  //
-  // `d.revoked_at IS NULL` in the join is what actually enforces "revoking a device
-  // kills its sessions": it takes effect on the very next request, independently of
-  // any DELETE. Do not remove it as an optimisation — the DELETE that a revoke
-  // endpoint will also perform is defence in depth, not the mechanism.
-  //
-  // `last_used_at` is throttled to a 5-minute granularity on purpose: writing it on
-  // every request would mean a row lock and a WAL record per API call, for a field
-  // whose only consumer is a "last seen" line in a UI. With the guard the UPDATE
-  // matches no row almost always, and takes no lock.
+  // One round trip. A data-modifying CTE runs whether or not it's read, so nothing
+  // references `touched`. `d.revoked_at IS NULL` is what makes "revoking a device
+  // kills its sessions" true on the next request, don't drop it as an optimisation.
+
+  // last_used_at throttled to 5 min, otherwise it's a row lock and a WAL record per
+  // API call for a field only a "last seen" line in the UI reads.
   const result = await fastify.db.query<SessionRow>(
     `WITH matched AS (
        SELECT

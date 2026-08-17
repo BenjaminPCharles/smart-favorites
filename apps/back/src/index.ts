@@ -10,42 +10,28 @@ import { dbPlugin } from './plugins/db.plugin'
 import { registerRoutes } from './routes'
 
 /**
- * How many proxies sit in front, from `TRUST_PROXY`: `true`, a hop count, or a CIDR
- * list. Off unless set, and that default is the safe one in both directions.
- *
- * Trusting `X-Forwarded-For` when nothing strips it lets any client claim any IP and
- * walk straight through the per-IP auth limits. Not trusting it when a proxy *is* in
- * front is the opposite failure and just as real: every request then carries the
- * proxy's address, so the 5/hour on /auth/init and the 20/min on /auth/challenge
- * collapse into one global bucket and the first user to hit it locks out everyone.
- * @param value
- * @return {boolean | string | number}
+ * Reads TRUST_PROXY as a hop count, returning `false` when unset or 0 rather than a truthy number.
  */
-function parseTrustProxy(value: string | undefined): boolean | string | number {
-  if (!value || value === 'false') {
+function parseTrustProxy(value: string | undefined): number | false {
+  if (!value) {
     return false
-  }
-  if (value === 'true') {
-    return true
   }
 
   const hops = Number(value)
 
-  return Number.isInteger(hops) && hops > 0 ? hops : value
+  if (!Number.isInteger(hops) || hops < 0) {
+    throw new Error(`TRUST_PROXY must be a hop count (0, 1, 2, ...), received "${value}"`)
+  }
+
+  return hops === 0 ? false : hops
 }
 
-// Initialize Fastify
 const fastify = Fastify({
   trustProxy: parseTrustProxy(process.env.TRUST_PROXY),
   logger: {
-    // Never log a session token nor an /auth/* body. Fastify's default serializers
-    // already omit headers and bodies, and onRequest runs before body parsing — so
-    // there is nothing leaking today. These paths are what keeps that true if a
-    // custom serializer is ever added, and pino applies them to anything logged by
-    // hand.
-    //
-    // Deliberately not disableRequestLogging nor a reduced logLevel on /auth/*:
-    // that would blind exactly the endpoints where a spike matters most.
+    // Never log a session token or an /auth/* body. Nothing leaks today, these paths
+    // keep it that way if someone adds a custom serializer. Not disableRequestLogging
+    // though, that would blind us where a traffic spike matters most.
     redact: {
       paths: ['req.headers.authorization', 'headers.authorization', 'sessionToken', '*.sessionToken', 'body'],
       censor: '[redacted]',
@@ -53,11 +39,6 @@ const fastify = Fastify({
   },
 })
 
-// Cors — comma separated list, so the extension origin (chrome-extension://<id>)
-// can be allowed alongside the local web origin.
-// This must stay a strict allowlist: never `origin: true`, never '*'. A foreign
-// page cannot sign anything, but it can trigger these handlers cross-origin, and
-// the allowlist is what stops it reading the answers.
 const corsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3000')
   .split(',')
   .map(origin => origin.trim())
@@ -70,15 +51,9 @@ fastify.register(fastifyCors, {
 })
 
 /**
- * Close the server on the signals a supervisor actually sends.
- *
- * Without this the process dies where it stands: requests in flight are cut, the pg
- * pool is never drained, and the `onClose` hook of cron.plugin — which exists only to
- * stop the purge task — never runs.
- *
- * `once`, so a second Ctrl-C during a slow drain still kills the process through the
- * default handler rather than being swallowed.
- * @param fastify
+ * Without this the process dies where it stands: requests cut, pg pool never drained,
+ * cron.plugin's onClose never run. `once` and not `on`, so a second Ctrl-C during a
+ * slow drain still kills us through the default handler.
  */
 function registerShutdown(fastify: FastifyInstance): void {
   for (const signal of ['SIGINT', 'SIGTERM'] as const) {
@@ -95,16 +70,13 @@ function registerShutdown(fastify: FastifyInstance): void {
   }
 }
 
-// Start
 async function bootstrap(fastify: FastifyInstance): Promise<void> {
   try {
-    // Verify database connectivity before starting the server
     const serviceClient = await servicesContainer.databaseConfig.connect()
     serviceClient.release()
     fastify.log.info('Database connected successfully')
 
-    // Register plugins — rate limit before auth so throttling is applied even
-    // to unauthenticated floods
+    // Rate limit before auth, so unauthenticated floods get throttled too
     await fastify.register(fastifyRateLimit, {
       max: 100,
       timeWindow: '1 minute',
@@ -113,9 +85,8 @@ async function bootstrap(fastify: FastifyInstance): Promise<void> {
     await fastify.register(authPlugin)
     await fastify.register(cronPlugin)
 
-    // Any unhandled throw must not reach the client: a pg unique violation carries
-    // a `detail` quoting the conflicting value, and an auth route is the last place
-    // that should echo request-derived content.
+    // Nothing unhandled reaches the client. A pg unique violation carries a `detail`
+    // quoting the conflicting value, which an auth route must never echo back.
     fastify.setErrorHandler((error: FastifyError, request: FastifyRequest, reply: FastifyReply) => {
       request.log.error({ err: error }, 'Request failed')
       const statusCode = error.statusCode && error.statusCode < 500 ? error.statusCode : 500
@@ -125,12 +96,10 @@ async function bootstrap(fastify: FastifyInstance): Promise<void> {
       })
     })
 
-    // Routes register
     await registerRoutes(fastify)
 
     registerShutdown(fastify)
 
-    // Run the server
     const PORT = process.env.API_PORT || 3000
     await fastify.listen({ port: Number(PORT) })
     fastify.log.info(`Server is now listening on http://localhost:${PORT}`)

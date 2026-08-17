@@ -52,15 +52,15 @@ describe('onboarding.helper', () => {
 
       expect(store.writeDeviceKey).toHaveBeenCalledTimes(1)
       expect(accountStore.writeMasterPublicKey).toHaveBeenCalledTimes(1)
-      // A put over the same record key replaces the old one, so there is never an
-      // instant where neither key exists
+      // A put on the same record key replaces the old one, so there's never a moment
+      // with no key at all
       expect(store.deleteDeviceKey).not.toHaveBeenCalled()
     })
 
     it('leaves the local state untouched when enrolment fails', async () => {
-      // The regression test for the bricked extension: writing the key before the
-      // server accepted it made loadAuthState report `device-ready` for a key nobody
-      // knew, and the restore screen became unreachable
+      // Regression test for the bricked extension. Writing the key before the server
+      // accepted it made loadAuthState report `device-ready` for a key nobody knew,
+      // and the restore screen became unreachable
       vi.mocked(authApi.authDevice).mockRejectedValue(new DeviceRejectedError())
 
       await expect(restoreDevice(MNEMONIC)).rejects.toBeInstanceOf(DeviceRejectedError)

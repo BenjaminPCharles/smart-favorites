@@ -8,9 +8,9 @@ export class AuthError extends Error {
 }
 
 /**
- * No device key in IndexedDB, so nothing can be signed. Extends AuthError so every
- * existing `instanceof AuthError` call site keeps working while the UI can still
- * tell this apart from an expired session.
+ * No device key in IndexedDB, nothing can be signed. Extends AuthError so existing
+ * `instanceof AuthError` call sites keep working, while the UI can still tell this
+ * apart from an expired session.
  */
 export class DeviceMissingError extends AuthError {
   constructor() {
@@ -19,7 +19,7 @@ export class DeviceMissingError extends AuthError {
   }
 }
 
-/** The server refused the device key itself — unknown, or revoked. */
+/** The server refused the device key itself: unknown, or revoked. */
 export class DeviceRejectedError extends AuthError {
   constructor() {
     super('This device is no longer authorised')
@@ -34,11 +34,7 @@ export class ApiError extends Error {
   }
 }
 
-/**
- * Read the response body, tolerating empty ones (204, or an error with no body).
- * @param response
- * @return {Promise<unknown>}
- */
+/** Tolerates an empty body (204, or an error that came back without one). */
 async function readBody(response: Response): Promise<unknown> {
   const text = await response.text()
   if (!text) {
@@ -54,15 +50,9 @@ async function readBody(response: Response): Promise<unknown> {
 }
 
 /**
- * Send a request and turn any non-2xx into a thrown error.
- *
- * This module knows nothing about auth: it takes a token if it is given one. That
- * separation is what lets the session layer call it without an import cycle.
- * @param url absolute url
- * @param method
- * @param token bearer token, omitted for public routes
- * @param body
- * @return {Promise<TResponse>}
+ * Non-2xx becomes a throw. `url` is absolute, `token` omitted for public routes.
+ * This module knows nothing about auth, it just uses a token if handed one, which is
+ * what lets the session layer call it without an import cycle.
  */
 export async function request<TResponse, TBody = undefined>(url: string, method: string, token?: string, body?: TBody): Promise<TResponse> {
   const response = await fetch(url, {

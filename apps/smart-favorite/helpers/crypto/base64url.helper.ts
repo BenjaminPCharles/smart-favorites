@@ -1,12 +1,7 @@
 /**
- * Encode bytes as unpadded base64url. `btoa` is the only base64 primitive
- * available here — there is no Buffer in a browser bundle.
- *
- * The per-byte loop is deliberate: `String.fromCharCode(...bytes)` blows the call
- * stack on large inputs. Ours are at most 91 bytes, but the loop costs nothing and
- * needs no caveat.
- * @param bytes
- * @return {string}
+ * Unpadded base64url. `btoa` is all we get, there's no Buffer in a browser bundle.
+ * Per-byte loop because `String.fromCharCode(...bytes)` blows the stack on large
+ * inputs. Ours are 91 bytes max, but the loop is free.
  */
 export function bytesToBase64Url(bytes: Uint8Array): string {
   let binary = ''
@@ -17,12 +12,7 @@ export function bytesToBase64Url(bytes: Uint8Array): string {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 
-/**
- * Decode a base64url string, tolerating the missing padding.
- * @param value
- * @return {Uint8Array}
- * @throws {Error} when the input is not valid base64
- */
+/** Tolerates the missing padding. Throws if the input isn't valid base64. */
 export function base64UrlToBytes(value: string): Uint8Array {
   const base64 = value.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(value.length / 4) * 4, '=')
   const binary = atob(base64)

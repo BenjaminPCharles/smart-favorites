@@ -1,8 +1,4 @@
-/**
- * Turn anything thrown into a message that can be shown to the user.
- * @param error
- * @return {string}
- */
+/** Anything thrown, turned into something showable to the user. */
 export function toErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }

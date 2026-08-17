@@ -13,8 +13,8 @@ const styles: Record<string, React.CSSProperties> = {
 }
 
 /**
- * Every field of a browser tab is optional in the API, and a favorite is
- * meaningless without a url — so `url` is the one the caller guards on.
+ * Every browser tab field is optional in the API, but a favorite without a url is
+ * meaningless, so `url` is the one callers guard on.
  */
 interface SavedTab {
   title: string | undefined

@@ -29,16 +29,16 @@ interface OnboardingProps {
 }
 
 export function Onboarding({ onCreated }: OnboardingProps): React.ReactNode {
-  // Generated once, in a lazy initialiser: a re-render must never hand the user a
-  // different phrase than the one they are writing down
+  // Lazy initialiser, generated once. A re-render must not hand the user a different
+  // phrase from the one they're writing down
   const [mnemonic] = useState<string>(() => generateRecoveryMnemonic())
   const [step, setStep] = useState<OnboardingStep>({ name: 'reveal' })
 
   async function handleVerified(): Promise<void> {
     setStep({ name: 'creating' })
     try {
-      // Nothing exists server-side until this call, which is why abandoning the
-      // flow at any earlier point leaves no orphan account
+      // Nothing exists server-side until this call, so dropping out of the flow any
+      // earlier leaves no orphan account behind
       await createAccount(mnemonic)
       setStep({ name: 'done' })
       onCreated()

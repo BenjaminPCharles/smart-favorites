@@ -33,8 +33,8 @@ export function RestoreDevice({ isKnownAccount, onRestored }: RestoreDeviceProps
   async function handleRestoreClick(): Promise<void> {
     setErrorMessage(undefined)
 
-    // Checked locally first, so a typo never needs a round trip — and the BIP39
-    // checksum can tell a misspelling from a genuinely wrong phrase
+    // Local check first, so a typo doesn't cost a round trip. The BIP39 checksum can
+    // also tell a misspelling from a genuinely wrong phrase
     const validity = validateMnemonicInput(phrase)
     if (!validity.isValid) {
       setErrorMessage(validity.errorMessage)

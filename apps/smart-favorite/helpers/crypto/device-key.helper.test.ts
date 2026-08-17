@@ -3,9 +3,8 @@ import { createPublicKey, verify } from 'node:crypto'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { base64UrlToBytes } from '~helpers/crypto/base64url.helper'
 
-// IndexedDB does not exist in the node environment, and fake-indexeddb's structured
-// clone cannot round-trip a CryptoKey — a green test against it would be a lie. The
-// store is therefore mocked here and covered by the manual QA checklist instead.
+// No IndexedDB in node, and fake-indexeddb can't round-trip a CryptoKey, so a green
+// test against it would be lying. Mocked, and covered by the manual QA checklist.
 vi.mock('~helpers/crypto/device-key-store.helper', () => ({
   readDeviceKey: vi.fn(),
   writeDeviceKey: vi.fn(),
@@ -29,7 +28,7 @@ describe('device-key.helper', () => {
 
     expect(deviceKey.privateKey.extractable).toBe(false)
     expect(deviceKey.privateKey.usages).toEqual(['sign'])
-    // The assertion that non-extractability is real and not aspirational
+    // Proves the non-extractability is real and not just a flag we set
     await expect(crypto.subtle.exportKey('pkcs8', deviceKey.privateKey)).rejects.toThrow()
   })
 
@@ -40,9 +39,8 @@ describe('device-key.helper', () => {
   })
 
   it('generates without persisting, which is what device enrolment needs', async () => {
-    // restoreDevice writes the key only once the server has accepted it: writing it
-    // first turns a failed enrolment into a `device-ready` extension holding a key
-    // nobody knows, with no way back to the restore screen
+    // restoreDevice only writes once the server accepted. Write first and a failed
+    // enrolment leaves a `device-ready` extension holding a key nobody knows
     await generateDeviceKey()
 
     expect(store.writeDeviceKey).not.toHaveBeenCalled()
@@ -62,11 +60,11 @@ describe('device-key.helper', () => {
     const message = new TextEncoder().encode('smart-favorites:v1:session:key:nonce')
     const signature = await signWithDeviceKey(deviceKey.privateKey, message)
 
-    // 64 bytes is what locks ieee-p1363: the day this becomes ~70 bytes of ASN.1
-    // DER, the server rejects every request in silence
+    // The 64 bytes are what pin ieee-p1363. The day this becomes ~70 bytes of ASN.1
+    // DER the server rejects every request without a word
     expect(base64UrlToBytes(signature)).toHaveLength(64)
 
-    // Exactly what apps/back/src/helpers/signature.helper.ts does
+    // Same thing apps/back/src/helpers/signature.helper.ts does
     const serverKey = createPublicKey({
       key: Buffer.from(base64UrlToBytes(deviceKey.publicKeyB64Url)),
       format: 'der',

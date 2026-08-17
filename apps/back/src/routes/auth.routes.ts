@@ -12,33 +12,26 @@ import {
 } from '../schemas/auth.schema'
 
 /**
- * Never pass `request.body` to `request.log.*` in this file, and never return zod
- * issues: both echo request content, which is what "no /auth/* body in the logs"
- * forbids. See the `redact` config in index.ts.
+ * Two rules here: never pass `request.body` to `request.log.*`, never return zod
+ * issues. Both echo request content, see the `redact` config in index.ts.
  */
 
-/** Shape errors depend only on the request bytes, so they reveal nothing. */
+/** Shape errors only depend on the request bytes, so they give nothing away. */
 const INVALID_REQUEST = { message: 'Invalid request' }
 /**
- * Everything whose answer depends on a database row collapses into this single
- * response — a bad signature, an unknown or spent nonce, an unknown or revoked
- * device, an unknown account. Distinguishing them would turn these endpoints into
- * an oracle for enumerating public keys.
+ * Anything depending on a database row gets this: bad signature, spent nonce,
+ * revoked device, unknown account. Telling them apart is an enumeration oracle.
  */
 const UNAUTHORIZED = { message: 'Unauthorized' }
 
-/** A soft cap, so one stolen mnemonic cannot enroll devices without bound. */
+/** Soft cap, so one stolen mnemonic can't enroll devices forever. */
 const MAX_ACTIVE_DEVICES = 20
 
 export function authRoutes(fastify: FastifyInstance): void {
   /**
-   * POST /auth/init
-   * Create an account from a master public key and a first device key. The master
-   * signature is the authentication: nobody but the key holder reaches the insert.
-   *
-   * No session is returned. The client immediately runs /auth/challenge +
-   * /auth/session, which keeps exactly one code path minting sessions — the same
-   * one every silent renewal uses.
+   * Create an account from a master public key plus a first device key. The master
+   * signature is the auth, nobody but the key holder reaches the insert. No session
+   * comes back, so only /auth/session ever mints one.
    */
   fastify.post('/auth/init', {
     config: {
@@ -59,8 +52,7 @@ export function authRoutes(fastify: FastifyInstance): void {
     }
 
     try {
-      // One statement, so the user and its first device are atomic without an
-      // explicit transaction
+      // One statement, so user + first device are atomic without an explicit tx
       const result = await fastify.db.query<{ public_id: string, device_uuid: string }>(
         `WITH created_user AS (
            INSERT INTO "user" (master_public_key) VALUES ($1)
@@ -85,13 +77,9 @@ export function authRoutes(fastify: FastifyInstance): void {
       return reply.code(201).send({ publicId: row.public_id, deviceUuid: row.device_uuid })
     }
     catch (error) {
-      // Safe to distinguish here: the route is only reachable once the master
-      // signature verified, so only the key holder can trigger it. One message for
-      // both the master and the device conflict.
-      //
-      // Deliberately not idempotent — "if the master key exists, just enroll the
-      // device" would make this a nonce-free device-enrolment endpoint, silently
-      // bypassing the single-use challenge /auth/device exists to enforce.
+      // Safe to be specific: we only get here once the master signature verified.
+      // Not idempotent on purpose, "master exists so just enroll the device" would
+      // be a nonce-free enrolment endpoint bypassing /auth/device's challenge.
       if (isUniqueViolation(error)) {
         return reply.code(409).send({ message: 'Account already exists' })
       }
@@ -101,13 +89,9 @@ export function authRoutes(fastify: FastifyInstance): void {
   })
 
   /**
-   * POST /auth/challenge
-   * Issue a single-use nonce, for either a device key (to open a session) or a
-   * master key (to enroll a device).
-   *
-   * The key is deliberately not looked up: answering "unknown key" would be an
-   * enumeration oracle, and a nonce is worthless without the matching private key.
-   * An unknown key fails one step later, as a uniform 401.
+   * Single-use nonce, for a device key (open a session) or a master key (enroll a
+   * device). The key is never looked up: answering "unknown key" is an enumeration
+   * oracle, and a nonce is useless without the private half.
    */
   fastify.post('/auth/challenge', {
     config: {
@@ -148,13 +132,9 @@ export function authRoutes(fastify: FastifyInstance): void {
 
     const { devicePublicKey, nonce, signature } = parsed.data
 
-    // The signature is checked before the nonce is spent, on purpose. A nonce is
-    // not a secret — it can sit in a proxy log or a devtools panel — so if
-    // consumption came first, anyone who observed one could burn it with a garbage
-    // signature and grief the legitimate client. Replay stays closed: consumption
-    // is atomic and precedes the token being minted, so of two concurrent requests
-    // carrying the same valid (nonce, signature) one wins the UPDATE and the other
-    // gets a 401.
+    // Signature first, nonce spent second. A nonce isn't a secret, so consuming it
+    // first would let anyone who saw one burn it with a garbage signature. Replay
+    // stays closed, consumption is atomic and precedes the token being minted.
     if (!verifyDeviceSignature(devicePublicKey, sessionMessage(devicePublicKey, nonce), signature)) {
       return reply.code(401).send(UNAUTHORIZED)
     }
@@ -179,16 +159,13 @@ export function authRoutes(fastify: FastifyInstance): void {
       [deviceRow.id, hashSessionToken(sessionToken), SESSION_TTL_SECONDS],
     )
 
-    // Relative seconds, so the extension never has to trust its own clock against
-    // the server's
+    // Relative seconds, the extension shouldn't have to trust its own clock
     return reply.send({ sessionToken, expiresIn: SESSION_TTL_SECONDS })
   })
 
   /**
-   * POST /auth/device
-   * Enroll a new device key on an existing account. Public, because the master
-   * signature *is* the authentication: the caller has no session yet, by
-   * definition. This is the only moment a user needs their recovery phrase.
+   * Enroll a new device key on an existing account. Public because the master
+   * signature *is* the auth. Only point where a user needs their recovery phrase.
    */
   fastify.post('/auth/device', {
     config: {
@@ -212,17 +189,9 @@ export function authRoutes(fastify: FastifyInstance): void {
       return reply.code(401).send(UNAUTHORIZED)
     }
 
-    // Account lookup, cap and insert in one statement. Folding the cap into the
-    // INSERT keeps the happy path to a single round trip, and shrinks the window in
-    // which two concurrent enrolments both see room from "two round trips" to one
-    // statement's snapshot.
-    //
-    // It does not close it: under READ COMMITTED the count subquery takes no lock, so
-    // two racing calls can still both land the 20th device. Making it a hard cap
-    // needs a transaction holding `SELECT … FOR UPDATE` on the user row, which is not
-    // worth a dedicated pool client while this stays what docs/AUTH.md calls it — a
-    // soft cap on an account the caller already controls, whose only job is to stop
-    // one stolen mnemonic enrolling devices without bound.
+    // Lookup, cap check and insert in one statement, so the happy path is one round
+    // trip. Doesn't fully close the race: under READ COMMITTED the count subquery
+    // takes no lock, so two calls can both land the 20th device. Fine for a soft cap.
     const inserted = await fastify.db.query<{ uuid: string }>(
       `WITH target_user AS (
          SELECT id FROM "user" WHERE master_public_key = $1
@@ -246,8 +215,8 @@ export function authRoutes(fastify: FastifyInstance): void {
       return reply.code(201).send({ deviceUuid: insertedRow.uuid })
     }
 
-    // No row: unknown account, cap reached, or the key is already registered. One
-    // query tells the three apart.
+    // No row means unknown account, cap reached, or key already registered. One
+    // query to tell the three apart.
     const state = await fastify.db.query<{ uuid: string | null, active_devices: string }>(
       `SELECT
          (SELECT d.uuid FROM user_device d
@@ -260,8 +229,8 @@ export function authRoutes(fastify: FastifyInstance): void {
     )
     const stateRow = state.rows[0]
 
-    // Retrying an enrolment after a network timeout is not an error, so an active
-    // device of this same account answers 200.
+    // Retrying after a network timeout isn't an error, so an active device on this
+    // same account gets a 200.
     if (stateRow?.uuid) {
       return reply.send({ deviceUuid: stateRow.uuid })
     }
@@ -270,17 +239,14 @@ export function authRoutes(fastify: FastifyInstance): void {
       return reply.code(409).send({ message: 'Device limit reached' })
     }
 
-    // Unknown account, or a key belonging to another account — or to a revoked
-    // device, which stays dead by design. All three get the uniform 401, so this
-    // never reveals whether an account exists for the key.
+    // Unknown account, key owned by someone else, or a revoked device. All three get
+    // the same 401, so this never reveals whether an account exists for a key.
     return reply.code(401).send(UNAUTHORIZED)
   })
 
   /**
-   * GET /auth/verify
-   * The cheapest "is my session still alive" probe, and the smoke test for the
-   * whole chain. Authenticated by the global onRequest hook, so reaching this
-   * handler already means the session is good.
+   * Cheapest "is my session alive" probe, and the smoke test for the whole chain.
+   * The onRequest hook does the auth, so getting here means the session is good.
    */
   fastify.get('/auth/verify', async (request: FastifyRequest, reply: FastifyReply) => {
     return reply.send({ publicId: request.user.publicId, deviceUuid: request.user.deviceUuid })

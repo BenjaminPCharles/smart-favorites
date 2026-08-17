@@ -2,16 +2,9 @@ import { Onboarding } from '~components/auth/onboarding/Onboarding'
 import { colors, spacing } from '~theme'
 
 /**
- * Onboarding runs in a tab, not in the popup.
- *
- * A popup's context is destroyed the moment it loses focus, and the natural next
- * action after being shown 12 words is to open a password manager — which would
- * destroy the phrase mid-flow. A tab survives that; closing it is a deliberate act.
- * It is also the right canvas for a 12-word grid, which 260px is not.
- *
- * The alternative would be persisting the plaintext phrase to storage.session for
- * the duration of onboarding, i.e. deliberately writing the recovery secret into an
- * extension-wide store — the one thing this redesign exists to stop doing.
+ * A tab, because a popup dies on blur and the natural thing to do after seeing 12
+ * words is open a password manager. The alternative was persisting the plaintext
+ * phrase to storage.session, which is what this redesign exists to stop doing.
  */
 
 const styles: Record<string, React.CSSProperties> = {
@@ -39,8 +32,8 @@ function OnboardingTab(): React.ReactNode {
   return (
     <div style={styles.page}>
       <div style={styles.card}>
-        {/* The popup picks the account up through storage.onChanged, so there is
-            nothing to hand back here */}
+        {/* The popup picks the account up via storage.onChanged, nothing to hand
+            back from here */}
         <Onboarding onCreated={() => undefined} />
       </div>
     </div>

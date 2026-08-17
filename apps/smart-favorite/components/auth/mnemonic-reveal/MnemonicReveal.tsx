@@ -6,9 +6,9 @@ import { splitMnemonic } from '~helpers/auth/mnemonic.helper'
 import { colors, fontSizes, radius, spacing } from '~theme'
 
 /**
- * A fixed-width mask, deliberately not `'•'.repeat(word.length)`: per-word dot
- * counts leak the length pattern of the phrase, which is a meaningful cut into the
- * wordlist search space. A CSS blur is worse still — the plaintext stays in the DOM.
+ * Fixed width, not `'•'.repeat(word.length)`: per-word dot counts leak the length
+ * pattern and cut real chunks out of the wordlist search space. A CSS blur is worse,
+ * the plaintext stays in the DOM.
  */
 const MASK = '••••••'
 
@@ -55,8 +55,8 @@ export function MnemonicReveal({ mnemonic, onContinue }: MnemonicRevealProps): R
   const [copyErrorMessage, setCopyErrorMessage] = useState<string | undefined>(undefined)
   const words = splitMnemonic(mnemonic)
 
-  // Cleared through an effect, so the timer dies with the component instead of firing
-  // into an unmounted tree
+  // In an effect so the timer dies with the component instead of firing into an
+  // unmounted tree
   useEffect(() => {
     if (!hasCopied) {
       return
@@ -69,9 +69,9 @@ export function MnemonicReveal({ mnemonic, onContinue }: MnemonicRevealProps): R
 
   async function handleCopyClick(): Promise<void> {
     try {
-      // Rejects when the clipboard permission is refused or the document is not
-      // focused. Silently swallowing that would leave the user believing 12 words
-      // they never wrote down are safely in their password manager.
+      // Rejects if the clipboard permission is refused or the document isn't focused.
+      // Swallow that and the user walks away thinking 12 words they never wrote down
+      // are safe in their password manager.
       await navigator.clipboard.writeText(mnemonic)
       setCopyErrorMessage(undefined)
       setHasCopied(true)

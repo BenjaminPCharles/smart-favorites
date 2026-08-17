@@ -4,14 +4,9 @@ import { NONCE_BYTES } from '../helpers/session-token.helper'
 import { DEVICE_PUBLIC_KEY_BYTES, MASTER_PUBLIC_KEY_BYTES, SIGNATURE_BYTES } from '../helpers/signature.helper'
 
 /**
- * base64url of an exact byte length, canonical encoding only.
- *
- * z.base64url() alone is not enough: it accepts non-zero trailing bits, so
- * 'A'.repeat(43) and 'A'.repeat(42) + 'B' both pass while decoding to the same 32
- * bytes. Reusing the canonical decoder means zod and the crypto layer can never
- * disagree about what a valid key is.
- * @param bytes
- * @return {z.ZodType<string>}
+ * z.base64url() alone accepts non-zero trailing bits, so 'A'.repeat(43) and
+ * 'A'.repeat(42) + 'B' both pass while decoding to the same bytes. Reusing the
+ * crypto layer's decoder means the two can't disagree on what a valid key is.
  */
 function base64urlBytes(bytes: number): z.ZodType<string> {
   return z.base64url().refine(value => decodeCanonicalBase64url(value, bytes) !== null)
@@ -23,19 +18,14 @@ const signature = base64urlBytes(SIGNATURE_BYTES)
 const nonce = base64urlBytes(NONCE_BYTES)
 
 /**
- * Device label — display-only metadata for the devices screen. Bounded so it
- * cannot be a storage-inflation vector, and control-character-free so it can never
- * carry a terminal escape or a line break into a log line.
- *
- * Deliberately not part of any signed message: it keeps one less thing that client
- * and server must agree on byte for byte, and the only attacker who could tamper
- * with it has already broken TLS.
+ * Display-only. Bounded so it can't inflate storage, no control chars so it can't
+ * drag a terminal escape into a log line. Not signed: one less thing both sides must
+ * agree on byte for byte, and tampering with it means TLS is already broken.
  */
 const label = z.string().trim().min(1).max(64).regex(/^\P{C}+$/u).optional()
 
-// z.strictObject, not z.object: a mistyped field name must fail loudly rather than
-// be silently dropped — and on /auth/challenge it is what makes "exactly one of the
-// two keys" enforceable.
+// strictObject, so a mistyped field name fails loudly instead of being dropped. On
+// /auth/challenge it's also what makes "exactly one of the two keys" enforceable.
 export const authInitBodySchema = z.strictObject({ masterPublicKey, devicePublicKey, signature, label })
 export const authChallengeBodySchema = z.union([
   z.strictObject({ devicePublicKey }),

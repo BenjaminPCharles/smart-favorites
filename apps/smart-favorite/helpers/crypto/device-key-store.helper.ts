@@ -1,12 +1,7 @@
 /**
- * Persistence for the device key.
- *
- * IndexedDB and not `storage.local`: a CryptoKey survives structured clone, which
- * is what IndexedDB uses, but not the JSON serialisation `storage.local` performs.
- * That is the entire reason this file exists.
- *
- * Hand-rolled rather than pulling in `idb`: one store and three operations, and
- * this is the one path where a dependency's supply chain matters most.
+ * IndexedDB and not storage.local, because a CryptoKey survives structured clone but
+ * not JSON. That's the whole reason this file exists. Hand-rolled instead of `idb`:
+ * one store, three operations, and a bad supply chain would hurt most right here.
  */
 
 const DATABASE_NAME = 'smart-favorites'
@@ -15,17 +10,14 @@ const STORE_NAME = 'device-key'
 const RECORD_KEY = 'current'
 
 export interface StoredDeviceKey {
-  /** Non-extractable: no JavaScript path can read it back, ours included. */
+  /** Non-extractable, no JavaScript path reads it back, ours included. */
   privateKey: CryptoKey
-  /** P-256 SPKI DER, base64url — what every request sends. */
+  /** P-256 SPKI DER, base64url. This is what every request sends. */
   publicKeyB64Url: string
   createdAt: number
 }
 
-/**
- * Open the database, creating the store on first run.
- * @return {Promise<IDBDatabase>}
- */
+/** Opens the db, creating the store on first run. */
 function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const openRequest = indexedDB.open(DATABASE_NAME, DATABASE_VERSION)
@@ -42,15 +34,9 @@ function openDatabase(): Promise<IDBDatabase> {
 }
 
 /**
- * Run one transaction then close the connection, so a future version bump is never
- * blocked by a popup that stayed open.
- *
- * Resolves on `complete` and not on the request's `success`: only then is a write
- * durable, which is what makes writeDeviceKey a real barrier and gives "persist
- * before the network call" its meaning.
- * @param mode
- * @param run
- * @return {Promise<TResult>}
+ * One transaction then close, so a version bump isn't blocked by an open popup.
+ * Resolves on `complete` and not the request's `success`: only then is the write
+ * durable, which is what makes writeDeviceKey a real barrier.
  */
 async function withStore<TResult>(mode: IDBTransactionMode, run: (store: IDBObjectStore) => IDBRequest): Promise<TResult> {
   const database = await openDatabase()
@@ -70,27 +56,16 @@ async function withStore<TResult>(mode: IDBTransactionMode, run: (store: IDBObje
   }
 }
 
-/**
- * Read the device key, if this browser profile has one.
- * @return {Promise<StoredDeviceKey | undefined>}
- */
 export async function readDeviceKey(): Promise<StoredDeviceKey | undefined> {
   return withStore<StoredDeviceKey | undefined>('readonly', store => store.get(RECORD_KEY))
 }
 
-/**
- * Persist the device key, replacing any previous one.
- * @param deviceKey
- * @return {Promise<void>}
- */
+/** Replaces any previous key. */
 export async function writeDeviceKey(deviceKey: StoredDeviceKey): Promise<void> {
   await withStore('readwrite', store => store.put(deviceKey, RECORD_KEY))
 }
 
-/**
- * Drop the device key — used when the server no longer accepts it.
- * @return {Promise<void>}
- */
+/** Used when the server stops accepting the key. */
 export async function deleteDeviceKey(): Promise<void> {
   await withStore('readwrite', store => store.delete(RECORD_KEY))
 }

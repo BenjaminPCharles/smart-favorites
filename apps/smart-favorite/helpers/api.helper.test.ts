@@ -19,11 +19,7 @@ const { api } = await import('~helpers/api.helper')
 const { ApiError, AuthError, DeviceRejectedError } = await import('~helpers/http.helper')
 const session = await import('~helpers/auth/session.helper')
 
-/**
- * Read the Authorization header of a recorded fetch call.
- * @param call
- * @return {string | undefined}
- */
+/** Authorization header off a recorded fetch call. */
 function authorizationOf(call: unknown[]): string | undefined {
   const init = call[1] as RequestInit | undefined
 
@@ -50,13 +46,13 @@ describe('api.helper', () => {
   })
 
   it('gives up after a single renewal', async () => {
-    // A factory, not mockResolvedValue: a Response body can only be read once
+    // A factory and not mockResolvedValue, a Response body only reads once
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ message: 'Unauthorized' }), { status: 401 }))
     vi.stubGlobal('fetch', fetchMock)
 
     await expect(api.get('/favorites')).rejects.toBeInstanceOf(AuthError)
-    // Two fetches and no more: the retry calls request() directly, so there is no
-    // recursion that could loop
+    // Two fetches, no more. The retry calls request() directly so there's no
+    // recursion to loop
     expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(session.renewSession).toHaveBeenCalledTimes(1)
   })

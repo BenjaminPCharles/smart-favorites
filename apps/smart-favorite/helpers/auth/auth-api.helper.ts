@@ -11,14 +11,9 @@ export interface AuthSessionResponse {
 }
 
 /**
- * Call an /auth/* route.
- *
- * A 401 here always means the *key* was refused — these routes have no session to
- * expire — so it is rethrown as DeviceRejectedError. That distinction is what lets
- * the UI send the user to the recovery screen instead of retrying forever.
- * @param path
- * @param body
- * @return {Promise<TResponse>}
+ * A 401 here always means the *key* was refused, these routes have no session to
+ * expire, so it becomes DeviceRejectedError. That's what sends the user to the
+ * recovery screen instead of retrying forever.
  */
 async function post<TResponse, TBody>(path: string, body: TBody): Promise<TResponse> {
   try {
@@ -33,28 +28,17 @@ async function post<TResponse, TBody>(path: string, body: TBody): Promise<TRespo
   }
 }
 
-/**
- * Create an account from a master public key and a first device key.
- * @param body
- * @param body.masterPublicKey
- * @param body.devicePublicKey
- * @param body.signature over the account-create message
- * @return {Promise<void>}
- */
+/** `signature` is over the account-create message. */
 export async function authInit(body: { masterPublicKey: string, devicePublicKey: string, signature: string }): Promise<void> {
   await post<{ publicId: string, deviceUuid: string }, typeof body>('/auth/init', body)
 }
 
-/**
- * Ask for a single-use nonce, for a device key or a master key.
- * @param body
- * @return {Promise<AuthChallengeResponse>}
- */
+/** Ask for a single-use nonce, for either a device key or a master key. */
 export async function authChallenge(body: { devicePublicKey: string } | { masterPublicKey: string }): Promise<AuthChallengeResponse> {
   const response = await post<AuthChallengeResponse, typeof body>('/auth/challenge', body)
 
-  // A shape check rather than a schema library: the server is the side that has to
-  // be paranoid, and zod would be this bundle's only consumer of itself
+  // Shape check instead of a schema library. The server is the paranoid side here,
+  // and zod would be this bundle's only user of zod
   if (typeof response?.nonce !== 'string' || !response.nonce) {
     throw new Error('The server returned an unusable challenge')
   }
@@ -62,14 +46,7 @@ export async function authChallenge(body: { devicePublicKey: string } | { master
   return response
 }
 
-/**
- * Exchange a signed challenge for a session token.
- * @param body
- * @param body.devicePublicKey
- * @param body.nonce as issued by /auth/challenge
- * @param body.signature over the session message
- * @return {Promise<AuthSessionResponse>}
- */
+/** `nonce` comes from /auth/challenge, `signature` is over the session message. */
 export async function authSession(body: { devicePublicKey: string, nonce: string, signature: string }): Promise<AuthSessionResponse> {
   const response = await post<AuthSessionResponse, typeof body>('/auth/session', body)
 
@@ -81,13 +58,8 @@ export async function authSession(body: { devicePublicKey: string, nonce: string
 }
 
 /**
- * Enroll this device on an existing account, authenticated by the master signature.
- * @param body
- * @param body.masterPublicKey
- * @param body.devicePublicKey
- * @param body.nonce as issued by /auth/challenge
- * @param body.signature over the device-register message
- * @return {Promise<void>}
+ * Enroll this device on an existing account. The master signature is what
+ * authenticates the call, and `signature` is over the device-register message.
  */
 export async function authDevice(body: { masterPublicKey: string, devicePublicKey: string, nonce: string, signature: string }): Promise<void> {
   await post<{ deviceUuid: string }, typeof body>('/auth/device', body)

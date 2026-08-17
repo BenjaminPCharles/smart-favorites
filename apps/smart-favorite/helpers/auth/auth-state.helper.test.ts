@@ -55,8 +55,8 @@ describe('auth-state.helper', () => {
   })
 
   it('treats an orphan device key as no account, so onboarding reuses it', async () => {
-    // Onboarding abandoned before /auth/init: nothing exists server-side, and the
-    // key that was already persisted is reused rather than replaced
+    // Onboarding abandoned before /auth/init. Nothing exists server-side and the key
+    // already persisted gets reused rather than replaced
     vi.mocked(store.readDeviceKey).mockResolvedValue(DEVICE_KEY)
     vi.mocked(accountStore.readMasterPublicKey).mockResolvedValue(undefined)
 
@@ -81,8 +81,8 @@ describe('auth-state.helper', () => {
     })
 
     it('falls back to the restore screen when the server refuses the device', async () => {
-      // The session layer deletes the refused key before rethrowing, so the second
-      // read is what turns a server-side revocation into a reachable UI state
+      // The session layer deletes the refused key before rethrowing, so it's the
+      // second read that turns a server-side revocation into a reachable UI state
       vi.mocked(accountStore.readMasterPublicKey).mockResolvedValue('master-key')
       vi.mocked(store.readDeviceKey)
         .mockResolvedValueOnce(DEVICE_KEY)

@@ -7,14 +7,9 @@ import { deriveMasterKey } from '~helpers/crypto/master-key.helper'
 import { buildAccountCreateMessage, buildDeviceRegisterMessage } from '~helpers/crypto/signed-message.helper'
 
 /**
- * Create an account from a freshly generated recovery phrase.
- *
- * Called only after the user has verified their backup, which is what makes an
- * abandoned onboarding harmless: no account exists server-side until this runs, so
- * there is nothing to orphan. The device key, by contrast, is persisted before any
- * network call.
- * @param mnemonic
- * @return {Promise<string>} the master public key
+ * Returns the master public key. Only called once the user verified their backup,
+ * which is what makes an abandoned onboarding harmless: nothing exists server-side
+ * until this runs, so there's nothing to orphan.
  */
 export async function createAccount(mnemonic: string): Promise<string> {
   const deviceKey = await getOrCreateDeviceKey()
@@ -38,22 +33,9 @@ export async function createAccount(mnemonic: string): Promise<string> {
 }
 
 /**
- * Authorise this browser on an existing account, using the recovery phrase.
- *
- * A fresh device key is always generated rather than reusing a stored one: that
- * sidesteps both the "already registered" ambiguity and the revoked-key case in one
- * stroke. The cost is one dead user_device row per unnecessary restore, which the
- * devices screen exists to clean up.
- *
- * Nothing local is touched until the server has accepted the new key. That ordering
- * is the whole point of this function: writing the key first — or deleting the old
- * one first — means a network blip, a 429 or a full device list leaves the extension
- * holding a key the server never saw, while `master_public_key` is still in
- * storage.local. loadAuthState would then read `device-ready`, the popup would show
- * the normal screen, every call would 401, and this very screen would be
- * unreachable. Persisting last makes a failed restore a no-op the user can retry.
- * @param mnemonic
- * @return {Promise<string>} the master public key
+ * Always a fresh device key, which dodges the "already registered" ambiguity and the
+ * revoked-key case at once. Nothing local is touched until the server accepts it:
+ * persist first and a 429 leaves us `device-ready` on a key nobody knows.
  */
 export async function restoreDevice(mnemonic: string): Promise<string> {
   const master = deriveMasterKey(mnemonic)
@@ -72,10 +54,10 @@ export async function restoreDevice(mnemonic: string): Promise<string> {
       signature,
     })
 
-    // Enrolled, so the new key can replace the old one. A put under the same record
-    // key, not a delete then a write: there is no instant where neither key exists.
+    // Enrolled, so the new key can replace the old one. A put on the same record key
+    // rather than a delete then a write, so there's no instant with no key at all.
     await writeDeviceKey(deviceKey)
-    // The old session belonged to the key that was just replaced
+    // The old session belonged to the key we just replaced
     await clearSession()
     await writeMasterPublicKey(master.publicKeyB64Url)
 

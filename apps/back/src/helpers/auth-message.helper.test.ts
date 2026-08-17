@@ -2,11 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { accountCreateMessage, deviceRegisterMessage, sessionMessage } from './auth-message.helper'
 
 /**
- * These three literals are the client/server contract. The extension asserts the
- * exact same strings in
- * apps/smart-favorite/helpers/crypto/signed-message.helper.test.ts — change one
- * side and that side's test still passes while production returns a uniform 401.
- * Both tests must be edited together, deliberately.
+ * The client/server contract. The extension asserts the same strings in
+ * signed-message.helper.test.ts. Change one side and its test still goes green
+ * while prod 401s, so edit both or neither.
  */
 const MASTER = 'bWFzdGVyLXB1YmxpYy1rZXk'
 const DEVICE = 'ZGV2aWNlLXB1YmxpYy1rZXk'

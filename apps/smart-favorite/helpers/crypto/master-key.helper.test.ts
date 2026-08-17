@@ -21,10 +21,9 @@ describe('master-key.helper', () => {
   })
 
   it('derives deterministically, and matches a locked golden vector', () => {
-    // This value pins the whole derivation: the BIP39 seed, HKDF-SHA512, the `info`
-    // string, and the 32-byte output. If any of them changes, every existing account
-    // becomes unreachable with no other symptom — so this assertion failing is the
-    // only warning there would ever be.
+    // Pins the whole derivation: BIP39 seed, HKDF-SHA512, `info`, output length.
+    // Change any of them and every account becomes unreachable with no other
+    // symptom, so this failing is the only warning anyone gets.
     const first = deriveMasterKey(TEST_MNEMONIC)
     const second = deriveMasterKey(TEST_MNEMONIC)
 
@@ -40,8 +39,8 @@ describe('master-key.helper', () => {
   })
 
   it('refuses a phrase that fails its BIP39 checksum', () => {
-    // Two words swapped: 12 words, all in the wordlist, so mnemonicToSeedSync alone
-    // would happily derive a wrong-but-plausible key. Only the checksum catches it.
+    // Two words swapped. Still 12 words, all in the wordlist, so mnemonicToSeedSync
+    // on its own happily derives a wrong-but-plausible key. Only the checksum sees it.
     const swapped = 'legal winner thank year wave sausage worth useful legal winner yellow thank'
 
     expect(() => deriveMasterKey(swapped)).toThrow('Invalid recovery phrase')
@@ -60,8 +59,8 @@ describe('master-key.helper', () => {
 
     expect(base64UrlToBytes(signature)).toHaveLength(64)
 
-    // Exactly what apps/back/src/helpers/signature.helper.ts does: the base64url
-    // public key is used verbatim as the JWK `x`
+    // Same as apps/back/src/helpers/signature.helper.ts, the base64url public key
+    // goes in verbatim as the JWK `x`
     const serverKey = createPublicKey({
       format: 'jwk',
       key: { kty: 'OKP', crv: 'Ed25519', x: master.publicKeyB64Url },

@@ -7,21 +7,13 @@ export const BACKUP_CHECK_WORD_COUNT = 3
 const WORDLIST = new Set(wordlist)
 
 /**
- * Fold a phrase to the form the derivation expects: NFKD, lowercase, single spaces.
- * BIP39 itself mandates NFKD; the rest is so that a trailing space or an
- * autocapitalised first word is not treated as a wrong phrase.
- * @param mnemonic
- * @return {string}
+ * NFKD, lowercase, single spaces. BIP39 mandates the NFKD, the rest is so a trailing
+ * space or an autocapitalised first word doesn't read as a wrong phrase.
  */
 export function normalizeMnemonic(mnemonic: string): string {
   return mnemonic.normalize('NFKD').trim().toLowerCase().split(/\s+/).filter(Boolean).join(' ')
 }
 
-/**
- * Split a phrase into its words.
- * @param mnemonic
- * @return {string[]}
- */
 export function splitMnemonic(mnemonic: string): string[] {
   const normalized = normalizeMnemonic(mnemonic)
 
@@ -29,14 +21,9 @@ export function splitMnemonic(mnemonic: string): string[] {
 }
 
 /**
- * Validate a phrase typed or pasted by the user.
- *
- * Three genuinely distinct messages, which is the concrete win over the old
- * 107-character key: a typo, an unknown word, and a wrong checksum used to be
- * indistinguishable. Unlike check-private-key-validity's single frozen message,
- * being specific here leaks nothing — the phrase is the user's own.
- * @param input
- * @return {{ isValid: true, mnemonic: string } | { isValid: false, errorMessage: string }}
+ * Three distinct messages, the real win over the old 107-character key where a typo,
+ * an unknown word and a bad checksum all looked identical. Being specific leaks
+ * nothing, the phrase is the user's own.
  */
 export function validateMnemonicInput(input: string): { isValid: true, mnemonic: string } | { isValid: false, errorMessage: string } {
   const words = splitMnemonic(input)
@@ -59,11 +46,9 @@ export function validateMnemonicInput(input: string): { isValid: true, mnemonic:
 }
 
 /**
- * Draw the positions the user must retype to prove they wrote the phrase down.
- *
- * crypto.getRandomValues rather than Math.random: it is free here, and one rule for
- * everything security-adjacent is easier to keep than two.
- * @return {number[]} distinct positions in [0, MNEMONIC_WORD_COUNT), ascending
+ * Positions the user retypes to prove they wrote the phrase down. Distinct,
+ * ascending. getRandomValues over Math.random because it's free and one rule for
+ * everything security-adjacent is easier to remember than two.
  */
 export function pickBackupCheckIndices(): number[] {
   const indices = new Set<number>()
@@ -77,16 +62,9 @@ export function pickBackupCheckIndices(): number[] {
 }
 
 /**
- * Check the words the user retyped.
- *
- * Returns the positions that are wrong, so the UI can mark those fields — a
- * deliberate divergence from the frozen single-message pattern of
- * check-private-key-validity, whose point was to avoid being an oracle. There is no
- * oracle here: the verifier already knows the answer and the user has just read it.
- * @param mnemonic
- * @param indices
- * @param answers aligned with `indices`
- * @return {{ isValid: true } | { isValid: false, invalidIndices: number[] }}
+ * `answers` is aligned with `indices`. Returns which positions are wrong so the UI
+ * can mark them. No oracle concern: the verifier knows the answer already and the
+ * user just read it off the screen.
  */
 export function verifyBackupWords(mnemonic: string, indices: number[], answers: string[]): { isValid: true } | { isValid: false, invalidIndices: number[] } {
   const words = splitMnemonic(mnemonic)
