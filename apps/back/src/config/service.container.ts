@@ -14,11 +14,10 @@ export class ServicesContainer {
   public readonly embeddingService: EmbeddingService
 
   constructor() {
-    // Services (EmbeddingService first, needed by ChromaConfig)
+    // EmbeddingService first, VectorChunkConfig depends on it
     this.httpService = new HttpService()
     this.embeddingService = new EmbeddingService()
 
-    // Configs
     this.databaseConfig = new DatabaseConfig('SERVICE_DB')
     this.scrapeDatabaseConfig = new DatabaseConfig('SCRAPE_DB')
     this.vectorChunk = new VectorChunkConfig(this.databaseConfig, this.embeddingService)

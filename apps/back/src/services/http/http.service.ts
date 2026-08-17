@@ -1,9 +1,3 @@
-/**
- * Service to fetch data from a URL
- * @param url - The URL to fetch data from
- * @param options - The options to fetch data from
- * @returns The fetched data
- */
 export class HttpService {
   constructor() {}
 

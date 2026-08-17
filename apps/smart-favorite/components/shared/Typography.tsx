@@ -1,6 +1,6 @@
 import { colors, fontSizes } from '../../theme'
 
-type TypographyVariant = 'body' | 'secondary' | 'muted' | 'dim' | 'caption' | 'code'
+type TypographyVariant = 'body' | 'secondary' | 'helper' | 'dim' | 'caption' | 'code'
 
 interface TypographyProps {
   children: React.ReactNode
@@ -22,7 +22,7 @@ const variantStyles: Record<TypographyVariant, React.CSSProperties> = {
     lineHeight: 1.5,
   },
   // Helper / warning text
-  muted: {
+  helper: {
     fontSize: fontSizes.sm,
     color: colors.textMuted,
     lineHeight: 1.6,

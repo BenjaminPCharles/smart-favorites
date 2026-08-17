@@ -1,3 +1,4 @@
+import process from 'node:process'
 import { HfInference } from '@huggingface/inference'
 
 export class EmbeddingService {

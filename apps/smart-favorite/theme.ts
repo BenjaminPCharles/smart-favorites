@@ -10,6 +10,9 @@ export const colors = {
   accent: '#f5c542',
   accentDark: '#e88c10',
   accentDarker: '#e07b00',
+  danger: '#ff6b6b',
+  dangerBg: 'rgba(255, 107, 107, 0.08)',
+  warningBg: 'rgba(245, 197, 66, 0.08)',
 } as const
 
 export const radius = {

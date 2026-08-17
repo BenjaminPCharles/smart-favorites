@@ -6,6 +6,7 @@
   "main": "index.js",
   "scripts": {
     "test:ts": "turbo run test:ts",
+    "test": "turbo run test",
     "dev": "turbo run dev",
     "dev:front": "turbo run dev --filter=front",
     "dev:back": "turbo run dev --filter=back",
