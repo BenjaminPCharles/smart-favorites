@@ -162,12 +162,6 @@ apps/
     helpers/       # crypto (BIP39, device keys), self-reauthenticating API client
     tabs/          # full-page onboarding
     popup.tsx      # popup entry point
-docs/
-  AUTH.md          # authentication model and trade-offs
-  CRYPTO-101.md    # cryptographic building blocks from scratch
-  DATABASE-AUTH.md # the four auth tables: columns, lifecycle, cleanup
-  REVISION-AUTH.md # reading plan + 48-question self-test on the auth model
-  todo.md          # prioritized backlog
 ```
 
 ## Project status
