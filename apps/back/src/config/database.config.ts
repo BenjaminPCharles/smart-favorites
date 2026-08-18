@@ -2,7 +2,7 @@ import type { PoolClient } from 'pg'
 import process from 'node:process'
 import { Pool } from 'pg'
 
-type DatabasePrefix = 'SERVICE_DB' | 'SCRAPE_DB'
+type DatabasePrefix = 'SERVICE_DB'
 export class DatabaseConfig {
   private pool: Pool | null = null
 
