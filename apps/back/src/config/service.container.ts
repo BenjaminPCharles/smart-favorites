@@ -6,7 +6,6 @@ import { VectorChunkConfig } from './vector-chunk.config'
 export class ServicesContainer {
   // Configs
   public readonly databaseConfig: DatabaseConfig
-  public readonly scrapeDatabaseConfig: DatabaseConfig
   public readonly vectorChunk: VectorChunkConfig
 
   // Services
@@ -19,7 +18,6 @@ export class ServicesContainer {
     this.embeddingService = new EmbeddingService()
 
     this.databaseConfig = new DatabaseConfig('SERVICE_DB')
-    this.scrapeDatabaseConfig = new DatabaseConfig('SCRAPE_DB')
     this.vectorChunk = new VectorChunkConfig(this.databaseConfig, this.embeddingService)
   }
 }

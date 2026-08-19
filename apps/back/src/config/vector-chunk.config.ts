@@ -26,7 +26,7 @@ export class VectorChunkConfig {
     const embedding = await this.embeddingService.embed(query)
     const pool = this.databaseConfig.getPool()
     const result = await pool.query<Chunk>(
-      'SELECT id, content, metadata FROM chunks ORDER BY embedding <=> $1 LIMIT $2', // <=> use to compare "cosinus"
+      'SELECT id, content, metadata FROM chunks ORDER BY embedding <=> $1 LIMIT $2',
       [JSON.stringify(embedding), limit],
     )
     return result.rows
