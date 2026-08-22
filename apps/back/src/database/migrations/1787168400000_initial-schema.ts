@@ -2,7 +2,6 @@ import type { ColumnDefinitions, MigrationBuilder } from 'node-pg-migrate'
 
 export const shorthands: ColumnDefinitions | undefined = undefined
 
-
 export async function up(pgm: MigrationBuilder): Promise<void> {
   pgm.sql('CREATE EXTENSION IF NOT EXISTS vector')
 
@@ -227,7 +226,6 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
   pgm.addConstraint('favorite', 'favorite_id_user_id_key', {
     unique: ['id', 'user_id'],
   })
-
 
   pgm.createTable('favorite_chunk', {
     id: 'id',

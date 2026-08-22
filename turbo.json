@@ -23,7 +23,8 @@
     },
     "test": {
       "dependsOn": [],
-      "outputs": []
+      "outputs": [],
+      "env": ["TEST_DB_*", "CI"]
     },
     "start": {
       "dependsOn": ["build"],

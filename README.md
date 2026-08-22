@@ -129,7 +129,7 @@ From the repo root, `turbo` forwards the command to both apps:
 |---|---|
 | `pnpm dev` | Runs API + extension in watch mode |
 | `pnpm build` | Production build (API + extension bundle) |
-| `pnpm test` | Unit tests (Vitest) |
+| `pnpm test` | Unit tests, plus the integration tests when the test database is up |
 | `pnpm test:ts` | Type checking (`tsc --noEmit`) |
 | `pnpm lint` / `pnpm lint:fix` | ESLint |
 
@@ -140,6 +140,29 @@ Backend only:
 | `pnpm --filter back migrate:up` / `migrate:down` | Apply / roll back a migration |
 | `pnpm --filter back migrate:create <name>` | Create a TypeScript migration file |
 | `pnpm --filter back test:watch` | Vitest in watch mode |
+
+### Integration tests
+
+Tests named `*.db.test.ts` run against a real PostgreSQL with pgvector. Start the throwaway
+database first, from `apps/back`:
+
+```bash
+docker compose -f docker-compose.db.yml up -d --wait testdatabase
+```
+
+It runs in RAM and holds no data between restarts. The migrations are applied automatically
+before the suite; there is nothing to configure, the defaults point at it.
+
+Without it, those tests skip themselves and print why — `pnpm test` stays green so a
+contributor without Docker is not blocked. In CI they are never skipped: the workflow
+provides the service and an unreachable database fails the job.
+
+`TEST_DB_HOST`, `TEST_DB_PORT`, `TEST_DB_USER`, `TEST_DB_PASSWORD` and `TEST_DB_NAME`
+override the defaults (`127.0.0.1:5433`, user/password/database all `smart_favorites_test`).
+They are read **from the environment only**: `pnpm test` is a bare `vitest run`, so unlike
+`pnpm dev` it never loads `.env` — putting them there has no effect. Overriding them through
+`pnpm test` also requires them to stay declared in the `test` task of `turbo.json`, which
+runs in strict env mode and drops anything undeclared.
 
 Extension only: `pnpm --filter smart-favorite build` produces `build/chrome-mv3-prod`,
 and `package` zips it up for the store.
