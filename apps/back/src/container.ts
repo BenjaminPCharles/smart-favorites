@@ -1,7 +1,7 @@
-import { EmbeddingService } from '../services/embedding/embedding.service'
-import { HttpService } from '../services/http/http.service'
-import { DatabaseConfig } from './database.config'
-import { VectorChunkConfig } from './vector-chunk.config'
+import { DatabaseConfig } from './config/database.config'
+import { VectorChunkConfig } from './config/vector-chunk.config'
+import { EmbeddingService } from './services/embedding/embedding.service'
+import { HttpService } from './services/http/http.service'
 
 export class ServicesContainer {
   // Configs

@@ -150,7 +150,8 @@ and `package` zips it up for the store.
 apps/
   back/
     src/
-      config/      # PostgreSQL pools, service container, pgvector config
+      container.ts # composition root: wires configs and services together
+      config/      # PostgreSQL pools, pgvector config
       database/    # node-pg-migrate migrations
       helpers/     # auth crypto: challenges, signatures, session tokens
       plugins/     # fastify: db, auth, cron purge of expired sessions
@@ -163,9 +164,3 @@ apps/
     tabs/          # full-page onboarding
     popup.tsx      # popup entry point
 ```
-
-## Project status
-
-Actively developed, **not production ready yet**: see the P0 items in
-[docs/todo.md](docs/todo.md) — most notably, the `chunks` table is not yet scoped to a
-user, which rules out exposing search to more than one account.
