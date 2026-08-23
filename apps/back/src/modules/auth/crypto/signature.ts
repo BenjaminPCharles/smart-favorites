@@ -1,7 +1,7 @@
 import type { KeyObject } from 'node:crypto'
 import { Buffer } from 'node:buffer'
 import { createPublicKey, verify } from 'node:crypto'
-import { decodeCanonicalBase64url } from './base64url.helper'
+import { decodeCanonicalBase64url } from './base64url'
 
 /** Ed25519 raw key from @noble/curves: 32 bytes, base64url, 43 chars on the wire. */
 export const MASTER_PUBLIC_KEY_BYTES = 32
@@ -94,7 +94,7 @@ export function importDevicePublicKey(publicKey: string): KeyObject | null {
   }
 }
 
-/** Message must be the exact bytes from auth-message.helper. */
+/** Message must be the exact bytes from message.ts. */
 export function verifyMasterSignature(publicKey: string, message: Buffer, signature: string): boolean {
   const key = importMasterPublicKey(publicKey)
   const rawSignature = decodeCanonicalBase64url(signature, SIGNATURE_BYTES)

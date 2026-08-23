@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { accountCreateMessage, deviceRegisterMessage, sessionMessage } from './auth-message.helper'
+import { accountCreateMessage, deviceRegisterMessage, sessionMessage } from './message'
 
 /**
  * The client/server contract. The extension asserts the same strings in

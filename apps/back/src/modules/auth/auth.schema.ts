@@ -1,7 +1,7 @@
 import { z } from 'zod'
-import { decodeCanonicalBase64url } from '../helpers/base64url.helper'
-import { NONCE_BYTES } from '../helpers/session-token.helper'
-import { DEVICE_PUBLIC_KEY_BYTES, MASTER_PUBLIC_KEY_BYTES, SIGNATURE_BYTES } from '../helpers/signature.helper'
+import { decodeCanonicalBase64url } from './crypto/base64url'
+import { NONCE_BYTES } from './crypto/session-token'
+import { DEVICE_PUBLIC_KEY_BYTES, MASTER_PUBLIC_KEY_BYTES, SIGNATURE_BYTES } from './crypto/signature'
 
 /**
  * z.base64url() alone accepts non-zero trailing bits, so 'A'.repeat(43) and
@@ -33,3 +33,9 @@ export const authChallengeBodySchema = z.union([
 ])
 export const authSessionBodySchema = z.strictObject({ devicePublicKey, nonce, signature })
 export const authDeviceBodySchema = z.strictObject({ masterPublicKey, devicePublicKey, nonce, signature, label })
+
+// What auth.service.ts takes: parsed output, so a service call can't be handed a raw body.
+export type AuthInitBody = z.infer<typeof authInitBodySchema>
+export type AuthChallengeBody = z.infer<typeof authChallengeBodySchema>
+export type AuthSessionBody = z.infer<typeof authSessionBodySchema>
+export type AuthDeviceBody = z.infer<typeof authDeviceBodySchema>

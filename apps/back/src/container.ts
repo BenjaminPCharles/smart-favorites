@@ -1,24 +1,24 @@
-import { DatabaseConfig } from './config/database.config'
-import { VectorChunkConfig } from './config/vector-chunk.config'
-import { EmbeddingService } from './services/embedding/embedding.service'
-import { HttpService } from './services/http/http.service'
+import { EmbeddingService } from './modules/embedding/embedding.service'
+import { VectorChunkRepository } from './modules/embedding/vector-chunk.repository'
+import { DatabaseConfig } from './shared/config/database.config'
+import { HttpService } from './shared/http/http.service'
 
 export class ServicesContainer {
-  // Configs
+  // Infrastructure
   public readonly databaseConfig: DatabaseConfig
-  public readonly vectorChunk: VectorChunkConfig
-
-  // Services
   public readonly httpService: HttpService
+
+  // Modules
   public readonly embeddingService: EmbeddingService
+  public readonly vectorChunk: VectorChunkRepository
 
   constructor() {
-    // EmbeddingService first, VectorChunkConfig depends on it
-    this.httpService = new HttpService()
-    this.embeddingService = new EmbeddingService()
-
     this.databaseConfig = new DatabaseConfig('SERVICE_DB')
-    this.vectorChunk = new VectorChunkConfig(this.databaseConfig, this.embeddingService)
+    this.httpService = new HttpService()
+
+    // EmbeddingService first, VectorChunkRepository depends on it
+    this.embeddingService = new EmbeddingService()
+    this.vectorChunk = new VectorChunkRepository(this.databaseConfig, this.embeddingService)
   }
 }
 

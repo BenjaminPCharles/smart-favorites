@@ -173,14 +173,17 @@ and `package` zips it up for the store.
 apps/
   back/
     src/
-      container.ts # composition root: wires configs and services together
-      config/      # PostgreSQL pools, pgvector config
+      index.ts     # process: port, signals, exit codes
+      app.ts       # buildApp(): the server assembled, without listening
+      container.ts # composition root: wires infrastructure and modules together
+      modules/
+        auth/      # /auth/* routes, rules, SQL, challenge purge
+          crypto/  # signed messages, signature checks, session tokens, base64url
+        health/    # /
+        embedding/ # embeddings (Hugging Face), vector chunks
+      shared/      # PostgreSQL pool, db plugin, HTTP client
       database/    # node-pg-migrate migrations
-      helpers/     # auth crypto: challenges, signatures, session tokens
-      plugins/     # fastify: db, auth, cron purge of expired sessions
-      routes/      # /health, /auth/*
-      schemas/     # Zod validation
-      services/    # embeddings (Hugging Face), HTTP client
+      test/        # database harness: migrate, truncate, reachability
   smart-favorite/
     components/    # auth (onboarding, mnemonic, restore), favorites, shared UI
     helpers/       # crypto (BIP39, device keys), self-reauthenticating API client

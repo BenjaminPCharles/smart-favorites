@@ -1,15 +1,15 @@
 import type { Pool } from 'pg'
 import { describe, expect, it, vi } from 'vitest'
-import { consumeChallenge, issueChallenge, purgeExpiredChallenges } from './auth-challenge.helper'
+import { consumeChallenge, issueChallenge, purgeExpiredChallenges } from './auth.repository'
 
-/** Pool stub. This helper only ever calls `query`. */
+/** Pool stub. The repository only ever calls `query`. */
 function createDbStub(result: unknown): { db: Pool, query: ReturnType<typeof vi.fn> } {
   const query = vi.fn().mockResolvedValue(result)
 
   return { db: { query } as unknown as Pool, query }
 }
 
-describe('auth-challenge.helper', () => {
+describe('auth.repository', () => {
   describe('issueChallenge', () => {
     it('binds the nonce to the public key and the purpose', async () => {
       const expiresAt = new Date('2026-08-04T12:00:00Z')
