@@ -20,7 +20,7 @@ vi.mock('~helpers/api.helper', () => ({
 const { loadAuthState, loadVerifiedAuthState } = await import('~helpers/auth/auth-state.helper')
 const store = await import('~helpers/crypto/device-key-store.helper')
 const accountStore = await import('~helpers/auth/account-store.helper')
-const { api } = await import('~helpers/api.helper')
+const { apiCall: api } = await import('~helpers/api.helper')
 const { ApiError, AuthError } = await import('~helpers/http.helper')
 
 const DEVICE_KEY = { publicKeyB64Url: 'device-key', createdAt: 0 } as StoredDeviceKey

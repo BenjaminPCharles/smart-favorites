@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import browser from 'webextension-polyfill'
 import { Button } from '~components/shared/Button'
+import { apiCall } from '~helpers/api.helper'
 import { spacing } from '~theme'
 
 const styles: Record<string, React.CSSProperties> = {
@@ -41,6 +42,7 @@ export function SaveFavorite({ setErrorMessage }: SaveFavoriteProps): React.Reac
       }
 
       const { title, url, favIconUrl, lastAccessed } = tab
+      apiCall.post('/favorites', { title, url, favIconUrl, lastAccessed })
       setData({ title, url, favIconUrl, lastAccessed })
     }
     catch (error) {

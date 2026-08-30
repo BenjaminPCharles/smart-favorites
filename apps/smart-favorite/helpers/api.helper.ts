@@ -31,7 +31,7 @@ async function authenticatedFetch<TResponse, TBody = undefined>(url: string, met
   }
 }
 
-export const api = {
+export const apiCall = {
   get: <TResponse>(url: string) => authenticatedFetch<TResponse>(url, 'GET'),
   post: <TResponse, TBody>(url: string, body?: TBody) => authenticatedFetch<TResponse, TBody>(url, 'POST', body),
   put: <TResponse, TBody>(url: string, body?: TBody) => authenticatedFetch<TResponse, TBody>(url, 'PUT', body),

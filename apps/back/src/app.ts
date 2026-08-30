@@ -8,6 +8,7 @@ import { authPlugin } from './modules/auth/auth.plugin'
 import { authRoutes } from './modules/auth/auth.routes'
 import { healthRoutes } from './modules/health/health.routes'
 import { dbPlugin } from './shared/db/db.plugin'
+import { favoriteRoutes } from './modules/favorite/favorite.routes'
 
 // The whole server, assembled but not listening: that is what makes app.inject() possible in a test.
 
@@ -84,6 +85,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
 
   await fastify.register(healthRoutes)
   await fastify.register(authRoutes)
+  await fastify.register(favoriteRoutes)
 
   return fastify
 }
