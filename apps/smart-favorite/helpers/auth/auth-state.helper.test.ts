@@ -14,7 +14,7 @@ vi.mock('~helpers/auth/account-store.helper', () => ({
 }))
 
 vi.mock('~helpers/api.helper', () => ({
-  api: { get: vi.fn() },
+  apiCall: { get: vi.fn() },
 }))
 
 const { loadAuthState, loadVerifiedAuthState } = await import('~helpers/auth/auth-state.helper')
