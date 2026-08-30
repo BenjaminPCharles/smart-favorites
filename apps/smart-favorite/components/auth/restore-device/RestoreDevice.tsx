@@ -4,8 +4,9 @@ import { Callout } from '~components/shared/Callout'
 import { Input } from '~components/shared/Input'
 import { Typography } from '~components/shared/Typography'
 import { MNEMONIC_WORD_COUNT, splitMnemonic, validateMnemonicInput } from '~helpers/auth/mnemonic.helper'
-import { restoreDevice } from '~helpers/auth/onboarding.helper'
+import { forgetAccount, restoreDevice } from '~helpers/auth/onboarding.helper'
 import { toErrorMessage } from '~helpers/error.helper'
+import { DeviceRejectedError } from '~helpers/http.helper'
 import { spacing } from '~theme'
 
 const styles: Record<string, React.CSSProperties> = {
@@ -15,26 +16,30 @@ const styles: Record<string, React.CSSProperties> = {
     gap: spacing.sm,
     padding: `${spacing.md}px ${spacing.xl}px ${spacing.lg}px`,
   },
+  confirmActions: {
+    display: 'flex',
+    gap: spacing.sm,
+  },
 }
 
 interface RestoreDeviceProps {
-  /** Present when we already know an account exists on this browser. */
   isKnownAccount: boolean
   onRestored: () => void
+  onDismissed: () => void
 }
 
-export function RestoreDevice({ isKnownAccount, onRestored }: RestoreDeviceProps): React.ReactNode {
+export function RestoreDevice({ isKnownAccount, onRestored, onDismissed }: RestoreDeviceProps): React.ReactNode {
   const [phrase, setPhrase] = useState<string>('')
   const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined)
   const [isRestoring, setIsRestoring] = useState<boolean>(false)
+  const [isConfirmingForget, setIsConfirmingForget] = useState<boolean>(false)
+  const [isForgetting, setIsForgetting] = useState<boolean>(false)
 
   const wordCount = splitMnemonic(phrase).length
 
   async function handleRestoreClick(): Promise<void> {
     setErrorMessage(undefined)
 
-    // Local check first, so a typo doesn't cost a round trip. The BIP39 checksum can
-    // also tell a misspelling from a genuinely wrong phrase
     const validity = validateMnemonicInput(phrase)
     if (!validity.isValid) {
       setErrorMessage(validity.errorMessage)
@@ -48,10 +53,28 @@ export function RestoreDevice({ isKnownAccount, onRestored }: RestoreDeviceProps
       onRestored()
     }
     catch (error) {
-      setErrorMessage(`Could not authorise this browser: ${toErrorMessage(error)}`)
+      setErrorMessage(error instanceof DeviceRejectedError
+        ? 'No account on this server matches these 12 words.'
+        : `Could not authorise this browser: ${toErrorMessage(error)}`)
     }
     finally {
       setIsRestoring(false)
+    }
+  }
+
+  async function handleForgetClick(): Promise<void> {
+    setErrorMessage(undefined)
+    setIsForgetting(true)
+    try {
+      await forgetAccount()
+      onDismissed()
+    }
+    catch (error) {
+      setIsConfirmingForget(false)
+      setErrorMessage(`Could not clear this browser: ${toErrorMessage(error)}`)
+    }
+    finally {
+      setIsForgetting(false)
     }
   }
 
@@ -72,7 +95,7 @@ export function RestoreDevice({ isKnownAccount, onRestored }: RestoreDeviceProps
         placeholder="word one word two word three..."
         ariaLabel="Recovery phrase"
         isInvalid={errorMessage !== undefined}
-        disabled={isRestoring}
+        disabled={isRestoring || isConfirmingForget}
         multiline
         rows={4}
         autoFocus
@@ -84,11 +107,37 @@ export function RestoreDevice({ isKnownAccount, onRestored }: RestoreDeviceProps
       <Button
         variant="primary"
         fullWidth
-        disabled={isRestoring || wordCount !== MNEMONIC_WORD_COUNT}
+        disabled={isRestoring || isConfirmingForget || wordCount !== MNEMONIC_WORD_COUNT}
         onClick={handleRestoreClick}
       >
         {isRestoring ? 'Authorising...' : '→ Authorise this browser'}
       </Button>
+
+      {isConfirmingForget
+        ? (
+            <>
+              <Callout variant="warning">
+                Forget the account stored on this browser? You'll need your 12 words to come
+                back to it.
+              </Callout>
+              <div style={styles.confirmActions}>
+                <Button fullWidth disabled={isForgetting} onClick={handleForgetClick}>
+                  {isForgetting ? 'Clearing...' : 'Forget it'}
+                </Button>
+                <Button fullWidth disabled={isForgetting} onClick={() => setIsConfirmingForget(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </>
+          )
+        : (
+            <Button
+              disabled={isRestoring}
+              onClick={isKnownAccount ? () => setIsConfirmingForget(true) : onDismissed}
+            >
+              {isKnownAccount ? 'Use a different account' : '← Back'}
+            </Button>
+          )}
     </div>
   )
 }

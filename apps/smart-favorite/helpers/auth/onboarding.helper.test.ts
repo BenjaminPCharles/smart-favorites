@@ -10,6 +10,7 @@ vi.mock('~helpers/auth/account-store.helper', () => ({
   MASTER_PUBLIC_KEY_STORAGE_KEY: 'master_public_key',
   readMasterPublicKey: vi.fn(),
   writeMasterPublicKey: vi.fn(),
+  clearMasterPublicKey: vi.fn(),
 }))
 
 vi.mock('~helpers/auth/session-store.helper', () => ({
@@ -25,10 +26,11 @@ vi.mock('~helpers/auth/auth-api.helper', () => ({
   authSession: vi.fn(),
 }))
 
-const { restoreDevice } = await import('~helpers/auth/onboarding.helper')
+const { forgetAccount, restoreDevice } = await import('~helpers/auth/onboarding.helper')
 const { generateRecoveryMnemonic } = await import('~helpers/crypto/master-key.helper')
 const store = await import('~helpers/crypto/device-key-store.helper')
 const accountStore = await import('~helpers/auth/account-store.helper')
+const sessionStore = await import('~helpers/auth/session-store.helper')
 const authApi = await import('~helpers/auth/auth-api.helper')
 const { DeviceRejectedError } = await import('~helpers/http.helper')
 
@@ -39,6 +41,8 @@ describe('onboarding.helper', () => {
     vi.mocked(store.writeDeviceKey).mockReset()
     vi.mocked(store.deleteDeviceKey).mockReset()
     vi.mocked(accountStore.writeMasterPublicKey).mockReset()
+    vi.mocked(accountStore.clearMasterPublicKey).mockReset()
+    vi.mocked(sessionStore.clearSession).mockReset()
     vi.mocked(authApi.authChallenge).mockReset()
     vi.mocked(authApi.authDevice).mockReset()
     vi.mocked(authApi.authChallenge).mockResolvedValue({ nonce: 'nonce', expiresAt: new Date().toISOString() })
@@ -84,6 +88,37 @@ describe('onboarding.helper', () => {
 
       expect(authApi.authChallenge).not.toHaveBeenCalled()
       expect(store.writeDeviceKey).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('forgetAccount', () => {
+    it('drops the device key, the session and the master key', async () => {
+      await forgetAccount()
+
+      expect(store.deleteDeviceKey).toHaveBeenCalledTimes(1)
+      expect(sessionStore.clearSession).toHaveBeenCalledTimes(1)
+      expect(accountStore.clearMasterPublicKey).toHaveBeenCalledTimes(1)
+    })
+
+    it('clears the master key last, it is what wakes the popup up', async () => {
+      const order: string[] = []
+      vi.mocked(store.deleteDeviceKey).mockImplementation(async () => void order.push('device-key'))
+      vi.mocked(sessionStore.clearSession).mockImplementation(async () => void order.push('session'))
+      vi.mocked(accountStore.clearMasterPublicKey).mockImplementation(async () => void order.push('master-key'))
+
+      await forgetAccount()
+
+      expect(order).toEqual(['device-key', 'session', 'master-key'])
+    })
+
+    it('keeps the master key when the device key cannot be dropped', async () => {
+      // Half-cleared would strand the popup on `no-account` with a key the server may
+      // still know, so the failure has to leave the restore screen intact
+      vi.mocked(store.deleteDeviceKey).mockRejectedValue(new Error('Local key store transaction failed'))
+
+      await expect(forgetAccount()).rejects.toThrow('Local key store transaction failed')
+
+      expect(accountStore.clearMasterPublicKey).not.toHaveBeenCalled()
     })
   })
 })
