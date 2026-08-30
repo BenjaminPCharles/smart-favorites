@@ -37,7 +37,6 @@ type PopupView
     | { name: 'ready' }
     | { name: 'error', message: string }
 
-
 export function viewForAuthState(state: AuthState): PopupView {
   switch (state.status) {
     case 'device-ready':

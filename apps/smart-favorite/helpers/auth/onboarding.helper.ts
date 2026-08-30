@@ -67,7 +67,6 @@ export async function restoreDevice(mnemonic: string): Promise<string> {
       signature,
     })
 
-
     await writeDeviceKey(deviceKey)
     await clearSession()
     await writeMasterPublicKey(master.publicKeyB64Url)
