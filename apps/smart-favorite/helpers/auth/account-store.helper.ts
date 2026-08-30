@@ -17,3 +17,8 @@ export async function readMasterPublicKey(): Promise<string | undefined> {
 export async function writeMasterPublicKey(masterPublicKey: string): Promise<void> {
   await browser.storage.local.set({ [MASTER_PUBLIC_KEY_STORAGE_KEY]: masterPublicKey })
 }
+
+/** Sends the popup back to the welcome screen, see forgetAccount. */
+export async function clearMasterPublicKey(): Promise<void> {
+  await browser.storage.local.remove(MASTER_PUBLIC_KEY_STORAGE_KEY)
+}

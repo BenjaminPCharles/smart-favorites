@@ -6,6 +6,7 @@ import { RestoreDevice } from '~components/auth/restore-device/RestoreDevice'
 import { Welcome } from '~components/auth/welcome/Welcome'
 import { SaveFavorite } from '~components/favorite/SaveFavorite'
 import { SearchFavorite } from '~components/favorite/SearchFavorite'
+import { Button } from '~components/shared/Button'
 import { Callout } from '~components/shared/Callout'
 import { Typography } from '~components/shared/Typography'
 import { MASTER_PUBLIC_KEY_STORAGE_KEY } from '~helpers/auth/account-store.helper'
@@ -23,6 +24,9 @@ const styles: Record<string, React.CSSProperties> = {
   },
   message: {
     padding: `${spacing.md}px ${spacing.xl}px`,
+  },
+  retry: {
+    paddingTop: spacing.sm,
   },
 }
 
@@ -120,6 +124,10 @@ function IndexPopup(): React.ReactNode {
       <div style={styles.container}>
         <div style={styles.message}>
           <Callout variant="danger">{view.message}</Callout>
+          {/* A dead backend shouldn't cost a popup close and reopen */}
+          <div style={styles.retry}>
+            <Button onClick={refresh}>↻ Retry</Button>
+          </div>
         </div>
       </div>
     )
@@ -139,7 +147,7 @@ function IndexPopup(): React.ReactNode {
   if (view.name === 'restore') {
     return (
       <div style={styles.container}>
-        <RestoreDevice isKnownAccount={view.isKnownAccount} onRestored={refresh} />
+        <RestoreDevice isKnownAccount={view.isKnownAccount} onRestored={refresh} onDismissed={refresh} />
       </div>
     )
   }
