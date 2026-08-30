@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import fp from 'fastify-plugin'
-import { servicesContainer } from '../config/service.container'
+import { servicesContainer } from '../../container'
 
 declare module 'fastify' {
   interface FastifyInstance {

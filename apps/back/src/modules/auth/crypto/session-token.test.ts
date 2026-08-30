@@ -5,9 +5,9 @@ import {
   generateSessionToken,
   hashSessionToken,
   sessionTokenMatchesHash,
-} from './session-token.helper'
+} from './session-token'
 
-describe('session-token.helper', () => {
+describe('session-token', () => {
   it('generates 32 bytes of base64url, never twice the same', () => {
     const token = generateSessionToken()
 

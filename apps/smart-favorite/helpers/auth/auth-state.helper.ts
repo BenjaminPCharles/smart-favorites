@@ -1,4 +1,4 @@
-import { api } from '~helpers/api.helper'
+import { apiCall } from '~helpers/api.helper'
 import { readMasterPublicKey } from '~helpers/auth/account-store.helper'
 import { readDeviceKey } from '~helpers/crypto/device-key-store.helper'
 import { AuthError } from '~helpers/http.helper'
@@ -39,7 +39,7 @@ export async function loadVerifiedAuthState(): Promise<AuthState> {
   }
 
   try {
-    await api.get('/auth/verify')
+    await apiCall.get('/auth/verify')
 
     return state
   }

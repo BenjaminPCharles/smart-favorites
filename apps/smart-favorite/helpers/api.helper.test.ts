@@ -15,7 +15,7 @@ vi.mock('~helpers/auth/session-store.helper', () => ({
   clearSession: vi.fn(async () => undefined),
 }))
 
-const { api } = await import('~helpers/api.helper')
+const { apiCall: api } = await import('~helpers/api.helper')
 const { ApiError, AuthError, DeviceRejectedError } = await import('~helpers/http.helper')
 const session = await import('~helpers/auth/session.helper')
 

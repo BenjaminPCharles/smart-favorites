@@ -6,7 +6,7 @@ import {
   importMasterPublicKey,
   verifyDeviceSignature,
   verifyMasterSignature,
-} from './signature.helper'
+} from './signature'
 
 const MESSAGE = Buffer.from('smart-favorites:v1:session:key:nonce', 'utf8')
 

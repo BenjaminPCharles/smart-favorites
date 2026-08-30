@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import fp from 'fastify-plugin'
 import cron from 'node-cron'
-import { purgeExpiredChallenges, purgeExpiredSessions } from '../helpers/auth-challenge.helper'
+import { purgeExpiredChallenges, purgeExpiredSessions } from './auth.repository'
 
 /** Often enough to keep the tables small, rare enough to go unnoticed. */
 const PURGE_SCHEDULE = '*/5 * * * *'
@@ -11,7 +11,7 @@ const PURGE_SCHEDULE = '*/5 * * * *'
  * instances are fine and there's no leader election to do. Also the backstop that
  * bounds auth_challenge whatever the per-process rate limit does.
  */
-export const cronPlugin = fp(async (fastify: FastifyInstance) => {
+export const authCleanupPlugin = fp(async (fastify: FastifyInstance) => {
   const task = cron.schedule(PURGE_SCHEDULE, async () => {
     try {
       const challenges = await purgeExpiredChallenges(fastify.db)

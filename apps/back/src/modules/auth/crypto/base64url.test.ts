@@ -1,9 +1,9 @@
 import { Buffer } from 'node:buffer'
 import { randomBytes } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
-import { decodeCanonicalBase64url } from './base64url.helper'
+import { decodeCanonicalBase64url } from './base64url'
 
-describe('base64url.helper', () => {
+describe('base64url', () => {
   it('decodes a canonical 43-char string to 32 bytes', () => {
     const bytes = randomBytes(32)
     const decoded = decodeCanonicalBase64url(bytes.toString('base64url'), 32)

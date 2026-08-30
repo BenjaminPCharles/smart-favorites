@@ -1,5 +1,5 @@
-import type { EmbeddingService } from '../services/embedding/embedding.service'
-import type { DatabaseConfig } from './database.config'
+import type { DatabaseConfig } from '../../shared/config/database.config'
+import type { EmbeddingService } from './embedding.service'
 
 interface Chunk {
   id: number
@@ -7,7 +7,8 @@ interface Chunk {
   metadata: Record<string, unknown> | null
 }
 
-export class VectorChunkConfig {
+// Every statement here targets a `chunks` table the migrations never create: the schema has `favorite_chunk`.
+export class VectorChunkRepository {
   constructor(
     private readonly databaseConfig: DatabaseConfig,
     private readonly embeddingService: EmbeddingService,
