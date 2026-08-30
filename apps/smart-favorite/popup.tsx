@@ -37,7 +37,7 @@ type PopupView
     | { name: 'ready' }
     | { name: 'error', message: string }
 
-/** Auth state to screen. Pure, so it's testable without React. */
+
 export function viewForAuthState(state: AuthState): PopupView {
   switch (state.status) {
     case 'device-ready':
@@ -51,13 +51,7 @@ export function viewForAuthState(state: AuthState): PopupView {
 
 function IndexPopup(): React.ReactNode {
   const [view, setView] = useState<PopupView>({ name: 'loading' })
-  // Separate from `view` because a failed save isn't a broken popup. Replacing the
-  // whole screen with an error page left users with no way back other than closing
-  // and reopening.
   const [actionErrorMessage, setActionErrorMessage] = useState<string | undefined>(undefined)
-  // Explicit invalidation token rather than depending on some incidental state. A
-  // child that changes storage calls refresh() and the screen moves on. Stops the
-  // "onboarding never closes" bug coming back via a forgotten dep array.
   const [reloadToken, setReloadToken] = useState<number>(0)
 
   const refresh = useCallback((): void => {
@@ -104,7 +98,6 @@ function IndexPopup(): React.ReactNode {
   }, [refresh])
 
   function handleCreateAccountClick(): void {
-    // A tab and not the popup, see tabs/onboarding.tsx for why
     void browser.tabs.create({ url: browser.runtime.getURL('tabs/onboarding.html') })
     window.close()
   }
@@ -124,7 +117,6 @@ function IndexPopup(): React.ReactNode {
       <div style={styles.container}>
         <div style={styles.message}>
           <Callout variant="danger">{view.message}</Callout>
-          {/* A dead backend shouldn't cost a popup close and reopen */}
           <div style={styles.retry}>
             <Button onClick={refresh}>↻ Retry</Button>
           </div>

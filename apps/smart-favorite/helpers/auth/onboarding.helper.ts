@@ -67,10 +67,8 @@ export async function restoreDevice(mnemonic: string): Promise<string> {
       signature,
     })
 
-    // Enrolled, so the new key can replace the old one. A put on the same record key
-    // rather than a delete then a write, so there's no instant with no key at all.
+
     await writeDeviceKey(deviceKey)
-    // The old session belonged to the key we just replaced
     await clearSession()
     await writeMasterPublicKey(master.publicKeyB64Url)
 

@@ -23,10 +23,8 @@ const styles: Record<string, React.CSSProperties> = {
 }
 
 interface RestoreDeviceProps {
-  /** Present when we already know an account exists on this browser. */
   isKnownAccount: boolean
   onRestored: () => void
-  /** Back to the welcome screen. The parent re-reads the auth state, so it works for both entry points. */
   onDismissed: () => void
 }
 
@@ -42,8 +40,6 @@ export function RestoreDevice({ isKnownAccount, onRestored, onDismissed }: Resto
   async function handleRestoreClick(): Promise<void> {
     setErrorMessage(undefined)
 
-    // Local check first, so a typo doesn't cost a round trip. The BIP39 checksum can
-    // also tell a misspelling from a genuinely wrong phrase
     const validity = validateMnemonicInput(phrase)
     if (!validity.isValid) {
       setErrorMessage(validity.errorMessage)
@@ -57,8 +53,6 @@ export function RestoreDevice({ isKnownAccount, onRestored, onDismissed }: Resto
       onRestored()
     }
     catch (error) {
-      // The server answers unknown account, wrong key and revoked device with the same
-      // 401 on purpose, so this stays deliberately vague about which one it was
       setErrorMessage(error instanceof DeviceRejectedError
         ? 'No account on this server matches these 12 words.'
         : `Could not authorise this browser: ${toErrorMessage(error)}`)
@@ -119,7 +113,6 @@ export function RestoreDevice({ isKnownAccount, onRestored, onDismissed }: Resto
         {isRestoring ? 'Authorising...' : '→ Authorise this browser'}
       </Button>
 
-      {/* The way out. Without it a wiped or unreachable account leaves the popup stuck here forever. */}
       {isConfirmingForget
         ? (
             <>
