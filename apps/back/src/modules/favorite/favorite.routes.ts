@@ -1,7 +1,6 @@
-import { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { FastifyInstance } from 'fastify'
 
-export function favoriteRoutes(fastify: FastifyInstance){
-    fastify.post('/favorites', async (request: FastifyRequest, reply: FastifyReply) => {
-        // console.log(request.body)
-    })
+export function favoriteRoutes(fastify: FastifyInstance): void {
+  // TODO: read the body and hand it to favorite.service once it exists
+  fastify.post('/favorites', async () => {})
 }

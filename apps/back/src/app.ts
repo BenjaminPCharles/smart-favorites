@@ -6,9 +6,9 @@ import Fastify from 'fastify'
 import { authCleanupPlugin } from './modules/auth/auth.cleanup.plugin'
 import { authPlugin } from './modules/auth/auth.plugin'
 import { authRoutes } from './modules/auth/auth.routes'
+import { favoriteRoutes } from './modules/favorite/favorite.routes'
 import { healthRoutes } from './modules/health/health.routes'
 import { dbPlugin } from './shared/db/db.plugin'
-import { favoriteRoutes } from './modules/favorite/favorite.routes'
 
 // The whole server, assembled but not listening: that is what makes app.inject() possible in a test.
 
