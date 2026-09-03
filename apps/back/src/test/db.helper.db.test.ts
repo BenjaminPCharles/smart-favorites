@@ -68,8 +68,8 @@ describe.skipIf(!inject('dbReady'))('db.helper', () => {
     )
     const userId = user.rows[0]?.id
     const favorite = await db.query<{ id: number }>(
-      `INSERT INTO favorite (user_id, url, title, category)
-       VALUES ($1, 'https://example.com', 'Example', 'tools') RETURNING id`,
+      `INSERT INTO favorite (user_id, url, title)
+       VALUES ($1, 'https://example.com', 'Example') RETURNING id`,
       [userId],
     )
     await db.query(

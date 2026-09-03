@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
+import { INVALID_REQUEST, UNAUTHORIZED } from '../../shared/http/errors'
 import {
   authChallengeBodySchema,
   authDeviceBodySchema,
@@ -14,14 +15,8 @@ import { createAccount, enrollDevice, issueAuthChallenge, openSession } from './
  * issues. Both echo request content, see the `redact` config in app.ts.
  */
 
-/** Shape errors only depend on the request bytes, so they give nothing away. */
-const INVALID_REQUEST = { message: 'Invalid request' }
-/**
- * Anything depending on a database row gets this: bad signature, spent nonce,
- * revoked device, unknown account. Telling them apart is an enumeration oracle.
- */
-// Also the fallthrough of every mapping below, so a new service status is fail-closed.
-const UNAUTHORIZED = { message: 'Unauthorized' }
+// INVALID_REQUEST and UNAUTHORIZED live in shared/http/errors.ts: every module has to send
+// the exact same bytes, and telling the causes of a 401 apart is an enumeration oracle.
 
 export function authRoutes(fastify: FastifyInstance): void {
   /** Create an account from a master public key plus a first device key. */

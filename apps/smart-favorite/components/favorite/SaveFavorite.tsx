@@ -3,6 +3,7 @@ import browser from 'webextension-polyfill'
 import { Button } from '~components/shared/Button'
 import { apiCall } from '~helpers/api.helper'
 import { spacing } from '~theme'
+import { readPageContent } from './helpers/extract-page-content.helper'
 
 const styles: Record<string, React.CSSProperties> = {
   container: {
@@ -42,7 +43,9 @@ export function SaveFavorite({ setErrorMessage }: SaveFavoriteProps): React.Reac
       }
 
       const { title, url, favIconUrl, lastAccessed } = tab
-      apiCall.post('/favorites', { title, url, favIconUrl, lastAccessed })
+      const content = await readPageContent(tab.id)
+      // `title` is required server-side, and a tab can have none: the url is the readable fallback
+      await apiCall.post('/favorites', { title: title || url, url, favIconUrl, lastAccessed, content })
       setData({ title, url, favIconUrl, lastAccessed })
     }
     catch (error) {
