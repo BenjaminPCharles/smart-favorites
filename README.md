@@ -141,6 +141,13 @@ Backend only:
 | `pnpm --filter back migrate:create <name>` | Create a TypeScript migration file |
 | `pnpm --filter back test:watch` | Vitest in watch mode |
 
+### Backend tests
+
+Every backend test lives under `apps/back/src/test`, in a tree mirroring `src/modules`. Each
+file holds exactly two suites, `describe('SUCCESS')` and `describe('ERROR')`, and nothing
+nested inside them: hooks and helpers sit at module scope, and a file with no failure case
+simply has no `ERROR` suite.
+
 ### Integration tests
 
 Tests named `*.db.test.ts` run against a real PostgreSQL with pgvector. Start the throwaway
@@ -153,9 +160,9 @@ docker compose -f docker-compose.db.yml up -d --wait testdatabase
 It runs in RAM and holds no data between restarts. The migrations are applied automatically
 before the suite; there is nothing to configure, the defaults point at it.
 
-Without it, those tests skip themselves and print why — `pnpm test` stays green so a
-contributor without Docker is not blocked. In CI they are never skipped: the workflow
-provides the service and an unreachable database fails the job.
+Without it, `vitest.config.ts` drops the whole `db` project and prints why — `pnpm test`
+stays green so a contributor without Docker is not blocked. In CI nothing is dropped: the
+workflow provides the service and an unreachable database fails the run.
 
 `TEST_DB_HOST`, `TEST_DB_PORT`, `TEST_DB_USER`, `TEST_DB_PASSWORD` and `TEST_DB_NAME`
 override the defaults (`127.0.0.1:5433`, user/password/database all `smart_favorites_test`).
@@ -183,7 +190,7 @@ apps/
         embedding/ # embeddings (Hugging Face), vector chunks
       shared/      # PostgreSQL pool, db plugin, HTTP client
       database/    # node-pg-migrate migrations
-      test/        # database harness: migrate, truncate, reachability
+      test/        # every test, mirroring modules/, plus the database harness
   smart-favorite/
     components/    # auth (onboarding, mnemonic, restore), favorites, shared UI
     helpers/       # crypto (BIP39, device keys), self-reauthenticating API client

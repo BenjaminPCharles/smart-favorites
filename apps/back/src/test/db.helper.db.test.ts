@@ -1,19 +1,19 @@
 import type { Pool } from 'pg'
-import { afterAll, beforeEach, describe, expect, inject, it } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { createTestPool, truncateAll } from './db.helper'
 
-describe.skipIf(!inject('dbReady'))('db.helper', () => {
-  let db: Pool
+let db: Pool
 
-  beforeEach(async () => {
-    db ??= createTestPool()
-    await truncateAll(db)
-  })
+beforeEach(async () => {
+  db ??= createTestPool()
+  await truncateAll(db)
+})
 
-  afterAll(async () => {
-    await db?.end()
-  })
+afterAll(async () => {
+  await db?.end()
+})
 
+describe('SUCCESS', () => {
   it('has applied the migrations', async () => {
     const { rows } = await db.query<{ tablename: string }>(
       `SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename`,
