@@ -33,7 +33,6 @@ describe('session-token', () => {
   })
 
   it('returns false rather than throwing on a corrupted stored hash', () => {
-    // timingSafeEqual throws on a length mismatch, the length guard catches it
     const token = generateSessionToken()
 
     expect(sessionTokenMatchesHash(token, 'deadbeef')).toBe(false)

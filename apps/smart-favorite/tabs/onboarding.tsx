@@ -1,12 +1,6 @@
 import { Onboarding } from '~components/auth/onboarding/Onboarding'
 import { colors, spacing } from '~theme'
 
-/**
- * A tab, because a popup dies on blur and the natural thing to do after seeing 12
- * words is open a password manager. The alternative was persisting the plaintext
- * phrase to storage.session, which is what this redesign exists to stop doing.
- */
-
 const styles: Record<string, React.CSSProperties> = {
   page: {
     minHeight: '100vh',

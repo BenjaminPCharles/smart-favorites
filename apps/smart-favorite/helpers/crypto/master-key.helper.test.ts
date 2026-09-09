@@ -7,7 +7,6 @@ import { base64UrlToBytes } from '~helpers/crypto/base64url.helper'
 import { deriveMasterKey, generateRecoveryMnemonic } from '~helpers/crypto/master-key.helper'
 import { buildAccountCreateMessage } from '~helpers/crypto/signed-message.helper'
 
-/** BIP39 reference phrases, so the golden vector below is reproducible. */
 const TEST_MNEMONIC = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'
 const OTHER_MNEMONIC = 'legal winner thank year wave sausage worth useful legal winner thank yellow'
 
@@ -21,9 +20,6 @@ describe('master-key.helper', () => {
   })
 
   it('derives deterministically, and matches a locked golden vector', () => {
-    // Pins the whole derivation: BIP39 seed, HKDF-SHA512, `info`, output length.
-    // Change any of them and every account becomes unreachable with no other
-    // symptom, so this failing is the only warning anyone gets.
     const first = deriveMasterKey(TEST_MNEMONIC)
     const second = deriveMasterKey(TEST_MNEMONIC)
 
@@ -39,8 +35,6 @@ describe('master-key.helper', () => {
   })
 
   it('refuses a phrase that fails its BIP39 checksum', () => {
-    // Two words swapped. Still 12 words, all in the wordlist, so mnemonicToSeedSync
-    // on its own happily derives a wrong-but-plausible key. Only the checksum sees it.
     const swapped = 'legal winner thank year wave sausage worth useful legal winner yellow thank'
 
     expect(() => deriveMasterKey(swapped)).toThrow('Invalid recovery phrase')
@@ -59,8 +53,6 @@ describe('master-key.helper', () => {
 
     expect(base64UrlToBytes(signature)).toHaveLength(64)
 
-    // Same as apps/back/src/helpers/signature.helper.ts, the base64url public key
-    // goes in verbatim as the JWK `x`
     const serverKey = createPublicKey({
       format: 'jwk',
       key: { kty: 'OKP', crv: 'Ed25519', x: master.publicKeyB64Url },

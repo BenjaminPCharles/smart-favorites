@@ -3,12 +3,8 @@ import process from 'node:process'
 import { buildApp } from './app'
 import { servicesContainer } from './container'
 
-/** Owns the process: the port, the signals, the exit codes. The server itself is app.ts. */
-
 /**
- * Without this the process dies where it stands: requests cut, pg pool never drained,
- * auth.cleanup.plugin's onClose never run. `once` and not `on`, so a second Ctrl-C
- * during a slow drain still kills us through the default handler.
+ * Drains the server once on SIGINT and SIGTERM, so requests finish and the pg pool closes.
  */
 function registerShutdown(fastify: FastifyInstance): void {
   for (const signal of ['SIGINT', 'SIGTERM'] as const) {
@@ -29,7 +25,6 @@ async function main(): Promise<void> {
   const fastify = await buildApp()
 
   try {
-    // Fail fast on a database that isn't there, rather than on the first request
     const serviceClient = await servicesContainer.databaseConfig.connect()
     serviceClient.release()
     fastify.log.info('Database connected successfully')
@@ -47,7 +42,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
-  // buildApp itself failed, so there is no logger to report through
   console.error('Startup failed:', error)
   process.exit(1)
 })

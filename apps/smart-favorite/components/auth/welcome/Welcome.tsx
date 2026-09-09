@@ -17,9 +17,7 @@ interface WelcomeProps {
 }
 
 /**
- * Both buttons always show, never branched on stored state. Recovery needs nothing
- * local, so if the write after /auth/init got lost the worst case is the user takes
- * the second button instead of the first, which works.
+ * Both entry buttons, always shown, recovery needing nothing stored locally.
  */
 export function Welcome({ onCreateAccountClick, onRestoreClick }: WelcomeProps): React.ReactNode {
   return (

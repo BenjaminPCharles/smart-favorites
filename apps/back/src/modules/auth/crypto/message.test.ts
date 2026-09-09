@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { accountCreateMessage, deviceRegisterMessage, sessionMessage } from './message'
 
-/**
- * The client/server contract. The extension asserts the same strings in
- * signed-message.helper.test.ts. Change one side and its test still goes green
- * while prod 401s, so edit both or neither.
- */
 const MASTER = 'bWFzdGVyLXB1YmxpYy1rZXk'
 const DEVICE = 'ZGV2aWNlLXB1YmxpYy1rZXk'
 const NONCE = 'bm9uY2U'

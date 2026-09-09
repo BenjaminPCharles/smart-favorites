@@ -58,11 +58,8 @@ function IndexPopup(): React.ReactNode {
   }, [])
 
   useEffect(() => {
-    // The popup unmounts on blur, possibly mid-promise
     let isCancelled = false
 
-    // Verified and not just read. A device revoked server-side is invisible to the
-    // local facts, this round trip is what turns it into the restore screen
     loadVerifiedAuthState()
       .then((state) => {
         if (!isCancelled) {
@@ -81,8 +78,9 @@ function IndexPopup(): React.ReactNode {
   }, [reloadToken])
 
   useEffect(() => {
-    // Onboarding finishes in another context (tabs/onboarding), so pick the account up
-    // without making the user reopen the popup
+    /**
+     * Picks up an account created in the onboarding tab, without making the user reopen the popup.
+     */
     function handleStorageChanged(changes: Record<string, Storage.StorageChange>, areaName: string): void {
       if (areaName === 'local' && MASTER_PUBLIC_KEY_STORAGE_KEY in changes) {
         refresh()

@@ -3,8 +3,6 @@ import { createPublicKey, verify } from 'node:crypto'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { base64UrlToBytes } from '~helpers/crypto/base64url.helper'
 
-// No IndexedDB in node, and fake-indexeddb can't round-trip a CryptoKey, so a green
-// test against it would be lying. Mocked, and covered by the manual QA checklist.
 vi.mock('~helpers/crypto/device-key-store.helper', () => ({
   readDeviceKey: vi.fn(),
   writeDeviceKey: vi.fn(),
@@ -14,7 +12,6 @@ vi.mock('~helpers/crypto/device-key-store.helper', () => ({
 const { createDeviceKey, generateDeviceKey, getOrCreateDeviceKey, signWithDeviceKey } = await import('~helpers/crypto/device-key.helper')
 const store = await import('~helpers/crypto/device-key-store.helper')
 
-/** The SPKI prefix every P-256 public key shares. */
 const P256_SPKI_PREFIX = '3059301306072a8648ce3d020106082a8648ce3d030107034200'
 
 describe('device-key.helper', () => {
@@ -28,7 +25,6 @@ describe('device-key.helper', () => {
 
     expect(deviceKey.privateKey.extractable).toBe(false)
     expect(deviceKey.privateKey.usages).toEqual(['sign'])
-    // Proves the non-extractability is real and not just a flag we set
     await expect(crypto.subtle.exportKey('pkcs8', deviceKey.privateKey)).rejects.toThrow()
   })
 
@@ -39,8 +35,6 @@ describe('device-key.helper', () => {
   })
 
   it('generates without persisting, which is what device enrolment needs', async () => {
-    // restoreDevice only writes once the server accepted. Write first and a failed
-    // enrolment leaves a `device-ready` extension holding a key nobody knows
     await generateDeviceKey()
 
     expect(store.writeDeviceKey).not.toHaveBeenCalled()
@@ -60,11 +54,8 @@ describe('device-key.helper', () => {
     const message = new TextEncoder().encode('smart-favorites:v1:session:key:nonce')
     const signature = await signWithDeviceKey(deviceKey.privateKey, message)
 
-    // The 64 bytes are what pin ieee-p1363. The day this becomes ~70 bytes of ASN.1
-    // DER the server rejects every request without a word
     expect(base64UrlToBytes(signature)).toHaveLength(64)
 
-    // Same thing apps/back/src/helpers/signature.helper.ts does
     const serverKey = createPublicKey({
       key: Buffer.from(base64UrlToBytes(deviceKey.publicKeyB64Url)),
       format: 'der',

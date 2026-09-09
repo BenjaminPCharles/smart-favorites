@@ -6,12 +6,13 @@ import { signWithDeviceKey } from '~helpers/crypto/device-key.helper'
 import { buildSessionMessage } from '~helpers/crypto/signed-message.helper'
 import { DeviceMissingError, DeviceRejectedError } from '~helpers/http.helper'
 
-/** Renew slightly early so the common path doesn't burn a 401 first. */
 const RENEWAL_SKEW_MS = 30_000
 
 let inFlightRenewal: Promise<Session> | undefined
 
-/** Signs a fresh challenge and stores the session that comes back. */
+/**
+ * Signs a fresh challenge and stores the session that comes back.
+ */
 async function createSession(): Promise<Session> {
   const deviceKey = await readDeviceKey()
   if (!deviceKey) {
@@ -30,7 +31,6 @@ async function createSession(): Promise<Session> {
       signature,
     })
 
-    // Relative expiry, a skewed local clock shouldn't make a live session look dead
     const session: Session = { token: sessionToken, expiresAt: Date.now() + expiresIn * 1000 }
     await writeSession(session)
 
@@ -46,9 +46,7 @@ async function createSession(): Promise<Session> {
 }
 
 /**
- * Closes the loop between a server-side revocation and the UI, otherwise we keep
- * saying `device-ready` for a dead key. master_public_key stays: it isn't secret,
- * and it's what lets the screen say "authorise again" not "restore your account".
+ * Drops the device key and session after a revocation, keeping the master public key.
  */
 async function forgetDevice(): Promise<void> {
   await deleteDeviceKey()
@@ -56,9 +54,7 @@ async function forgetDevice(): Promise<void> {
 }
 
 /**
- * Concurrent callers share one in-flight attempt. The `.finally` is what makes a
- * failed renewal retryable, without it one blip poisons every later call.
- * Cross-context stampedes aren't guarded, /auth/challenge is cheap.
+ * Opens a new session, concurrent callers sharing one in-flight attempt that stays retryable.
  */
 export async function renewSession(): Promise<Session> {
   inFlightRenewal ??= createSession().finally(() => {
@@ -68,7 +64,9 @@ export async function renewSession(): Promise<Session> {
   return inFlightRenewal
 }
 
-/** A usable session, renewing first if the stored one is gone or nearly expired. */
+/**
+ * A usable session, renewing first if the stored one is gone or nearly expired.
+ */
 export async function getSession(): Promise<Session> {
   const stored = await readSession()
   if (stored && stored.expiresAt - Date.now() > RENEWAL_SKEW_MS) {

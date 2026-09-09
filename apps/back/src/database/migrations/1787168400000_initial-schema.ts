@@ -5,11 +5,6 @@ export const shorthands: ColumnDefinitions | undefined = undefined
 export async function up(pgm: MigrationBuilder): Promise<void> {
   pgm.sql('CREATE EXTENSION IF NOT EXISTS vector')
 
-  /**
-   * An account is a BIP39 phrase, nothing else: no email, no password. Only the public
-   * half of the master key is stored, so a full database leak lets nobody authenticate.
-   * `public_id` is what may be shown or logged; `id` never leaves the server.
-   */
   pgm.createTable('user', {
     id: 'id',
     public_id: {
@@ -18,7 +13,6 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
       unique: true,
       default: pgm.func('gen_random_uuid()'),
     },
-    // Ed25519, 32 raw bytes, canonical base64url (43 chars)
     master_public_key: {
       type: 'text',
       notNull: true,
@@ -36,11 +30,6 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
     },
   })
 
-  /**
-   * One ECDSA P-256 keypair per install, private half a non-extractable CryptoKey in
-   * IndexedDB. `public_key` is globally unique, so a revoked key can never be
-   * re-registered — on purpose: a revoked key stays dead.
-   */
   pgm.createTable('user_device', {
     id: 'id',
     uuid: {
@@ -56,7 +45,6 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
       referencesConstraintName: 'fk_user_device_user',
       onDelete: 'CASCADE',
     },
-    // P-256 SPKI DER, 91 bytes, canonical base64url (122 chars)
     public_key: {
       type: 'text',
       notNull: true,
@@ -82,10 +70,6 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
   })
   pgm.createIndex('user_device', 'user_id')
 
-  /**
-   * Opaque 32-byte CSPRNG token, stored hashed, 15 minute TTL. The extension renews it
-   * silently by signing a fresh challenge, which is why the user never signs in again.
-   */
   pgm.createTable('user_session', {
     id: 'id',
     device_id: {
@@ -95,7 +79,6 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
       referencesConstraintName: 'fk_user_session_user_device',
       onDelete: 'CASCADE',
     },
-    // SHA-256 of the opaque token, hex
     token_hash: {
       type: 'text',
       notNull: true,
@@ -118,15 +101,7 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
   pgm.createIndex('user_session', 'device_id')
   pgm.createIndex('user_session', 'expires_at')
 
-  /**
-   * Single-use nonce, bound to a public key and to what it can be spent on. Without
-   * `purpose`, a device-register nonce would be spendable against /auth/rotate. Named
-   * `purpose` and not `usage` because USAGE is a Postgres keyword.
-   *
-   * No index on `public_key`: consumption always goes through the primary key.
-   */
   pgm.createTable('auth_challenge', {
-    // 32 bytes CSPRNG, base64url
     nonce: {
       type: 'text',
       primaryKey: true,
@@ -165,19 +140,6 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
     'entertainment',
   ])
 
-  /**
-   * A saved page. `url` is stored as the client sends it: deciding that two URLs designate
-   * the same page (lowercase host, fragment and tracking params dropped) is the service's
-   * job, testable and changeable without a migration.
-   *
-   * `UNIQUE (user_id, url)` is what keeps a second save of the same page from creating a
-   * second row, hence a second set of embeddings paid twice at Hugging Face. The pair is
-   * also the leading-column index for every per-user read, so no separate index on
-   * `user_id` is needed.
-   *
-   * `UNIQUE (id, user_id)` exists only to be the target of favorite_chunk's composite
-   * foreign key — see below. It is redundant with the primary key, and that is the point.
-   */
   pgm.createTable('favorite', {
     id: 'id',
     uuid: {
@@ -241,14 +203,10 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
       type: 'text',
       notNull: true,
     },
-    // Where the passage comes from, once a favorite has more than one: offset, section,
-    // extraction method. Unused while a favorite holds a single chunk.
     metadata: {
       type: 'jsonb',
       notNull: false,
     },
-    // 384 dimensions: sentence-transformers/all-MiniLM-L6-v2. Nullable, so a favorite can
-    // be saved before the embedding call comes back, or after it failed.
     embedding: {
       type: 'vector(384)',
       notNull: false,
@@ -268,19 +226,14 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
     },
   })
 
-  // user_id serves the search filter, favorite_id the cascade and the per-favorite rewrite
-  // of chunks when a favorite is saved again.
   pgm.createIndex('favorite_chunk', 'user_id')
   pgm.createIndex('favorite_chunk', 'favorite_id')
 
-  // Cosine distance, matching the normalised output of the model. pgvector 0.8 can iterate
-  // the index when a filter cuts the result set short (hnsw.iterative_scan).
   pgm.sql('CREATE INDEX favorite_chunk_embedding_idx ON favorite_chunk USING hnsw (embedding vector_cosine_ops)')
 }
 
 /**
- * Full teardown, reverse order. Cascades would carry most of it, but naming each drop
- * keeps the migration readable as the inverse of `up`.
+ * Full teardown in reverse order, each drop named so it reads as the inverse of `up`.
  */
 export async function down(pgm: MigrationBuilder): Promise<void> {
   pgm.dropTable('favorite_chunk', { ifExists: true })

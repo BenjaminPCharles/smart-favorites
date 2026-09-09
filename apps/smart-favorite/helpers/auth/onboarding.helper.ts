@@ -7,9 +7,7 @@ import { deriveMasterKey } from '~helpers/crypto/master-key.helper'
 import { buildAccountCreateMessage, buildDeviceRegisterMessage } from '~helpers/crypto/signed-message.helper'
 
 /**
- * Returns the master public key. Only called once the user verified their backup,
- * which is what makes an abandoned onboarding harmless: nothing exists server-side
- * until this runs, so there's nothing to orphan.
+ * Creates the account and returns its master public key, once the backup is verified.
  */
 export async function createAccount(mnemonic: string): Promise<string> {
   const deviceKey = await getOrCreateDeviceKey()
@@ -33,11 +31,7 @@ export async function createAccount(mnemonic: string): Promise<string> {
 }
 
 /**
- * Drops everything this browser knows about the account, which is the only way off
- * the restore screen when the server no longer has the account. Nothing here is
- * irrecoverable: all of it derives from the 12 words. The master key goes last, it's
- * the storage.onChanged key the popup watches, so the refresh it triggers sees a
- * state that's already clean.
+ * Drops all this browser knows of the account, every part of it derivable from the 12 words.
  */
 export async function forgetAccount(): Promise<void> {
   await deleteDeviceKey()
@@ -46,9 +40,7 @@ export async function forgetAccount(): Promise<void> {
 }
 
 /**
- * Always a fresh device key, which dodges the "already registered" ambiguity and the
- * revoked-key case at once. Nothing local is touched until the server accepts it:
- * persist first and a 429 leaves us `device-ready` on a key nobody knows.
+ * Enrolls a fresh device key, touching nothing local until the server has accepted it.
  */
 export async function restoreDevice(mnemonic: string): Promise<string> {
   const master = deriveMasterKey(mnemonic)

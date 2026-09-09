@@ -9,9 +9,7 @@ export type AuthState
     | { status: 'device-missing', masterPublicKey: string }
 
 /**
- * Two facts decide the screen: a device key in IndexedDB, a master key in
- * storage.local. Device key without master key means onboarding was abandoned before
- * /auth/init, and the orphan key gets reused rather than regenerated.
+ * The screen to show, from the device key in IndexedDB and the master key in storage.local.
  */
 export async function loadAuthState(): Promise<AuthState> {
   const [deviceKey, masterPublicKey] = await Promise.all([readDeviceKey(), readMasterPublicKey()])
@@ -28,9 +26,7 @@ export async function loadAuthState(): Promise<AuthState> {
 }
 
 /**
- * loadAuthState can't see a device revoked server-side, so one GET /auth/verify
- * settles it: only a refused key surfaces as AuthError, and the session layer has
- * deleted it by then. A non-auth failure keeps the local state, popup stays usable.
+ * loadAuthState plus one round trip, the only way to see a device revoked server-side.
  */
 export async function loadVerifiedAuthState(): Promise<AuthState> {
   const state = await loadAuthState()

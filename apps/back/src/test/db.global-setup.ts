@@ -4,18 +4,21 @@ import { isTestDatabaseReachable, migrateTestDatabase, testDatabaseConfig } from
 
 declare module 'vitest' {
   interface ProvidedContext {
-    /** False when the test database is unreachable: the `db` suites skip themselves. */
     dbReady: boolean
   }
 }
 
-/** Migrates once per run, and prints the skip reason vitest does not show next to a skipped suite. */
+/**
+ * Migrates once per run, and prints the skip reason vitest does not show next to a skipped suite.
+ */
 export default async function setup({ provide }: TestProject): Promise<void> {
   if (!await isTestDatabaseReachable()) {
     const { host, port, database } = testDatabaseConfig
     const target = `${host}:${port}/${database}`
 
-    // In CI the service container is guaranteed, so skipping would leave the job green for nothing.
+    /**
+     * In CI the service container is guaranteed, so skipping would leave the job green for nothing.
+     */
     if (process.env.CI) {
       throw new Error(
         `Test database unreachable at ${target}, and CI is set. The service container in `

@@ -5,7 +5,6 @@ import { fileURLToPath } from 'node:url'
 import { runner } from 'node-pg-migrate'
 import { Client, Pool } from 'pg'
 
-/** Throwaway database of `docker-compose.db.yml`. Defaults are load-bearing: vitest never reads `.env`. */
 export const testDatabaseConfig: PoolConfig = {
   host: process.env.TEST_DB_HOST ?? '127.0.0.1',
   port: Number(process.env.TEST_DB_PORT ?? 5433),
@@ -19,10 +18,11 @@ const MIGRATIONS_DIR = path.resolve(
   '../database/migrations',
 )
 
-/** node-pg-migrate's own table. Never truncated: it is what makes `up` idempotent. */
 const MIGRATIONS_TABLE = 'pgmigrations'
 
-/** Refuses to migrate or truncate a database whose name does not look disposable. */
+/**
+ * Refuses to migrate or truncate a database whose name does not look disposable.
+ */
 function assertDisposable(): void {
   const name = String(testDatabaseConfig.database)
 
@@ -34,7 +34,9 @@ function assertDisposable(): void {
   }
 }
 
-/** Is the test database up? Short timeout, so a missing container costs seconds, not minutes. */
+/**
+ * Is the test database up? Short timeout, so a missing container costs seconds, not minutes.
+ */
 export async function isTestDatabaseReachable(timeoutMs = 2000): Promise<boolean> {
   const client = new Client({ ...testDatabaseConfig, connectionTimeoutMillis: timeoutMs })
 
@@ -44,13 +46,14 @@ export async function isTestDatabaseReachable(timeoutMs = 2000): Promise<boolean
     return true
   }
   catch {
-    // The caller turns this into a skipped suite, which is where the reason gets reported.
     await client.end().catch(() => {})
     return false
   }
 }
 
-/** Migrates via node-pg-migrate's API — same files as production, no shelling out to its CLI. */
+/**
+ * Migrates via node-pg-migrate's API, the same files as production, without shelling out.
+ */
 export async function migrateTestDatabase(): Promise<void> {
   assertDisposable()
 
@@ -63,7 +66,9 @@ export async function migrateTestDatabase(): Promise<void> {
   })
 }
 
-/** Pool for a test file to query through. The caller closes it. */
+/**
+ * Pool for a test file to query through. The caller closes it.
+ */
 export function createTestPool(): Pool {
   assertDisposable()
 
@@ -72,7 +77,9 @@ export function createTestPool(): Pool {
 
 let tableList: string | null = null
 
-/** Empties every table, sequences included. Table list from the catalog, so nothing is forgotten. */
+/**
+ * Empties every table, sequences included. Table list from the catalog, so nothing is forgotten.
+ */
 export async function truncateAll(db: Pool): Promise<void> {
   assertDisposable()
 
@@ -84,7 +91,6 @@ export async function truncateAll(db: Pool): Promise<void> {
       [MIGRATIONS_TABLE],
     )
 
-    // Identifiers come from the catalog through quote_ident, never from user input.
     tableList = rows[0]?.tables ?? ''
   }
 

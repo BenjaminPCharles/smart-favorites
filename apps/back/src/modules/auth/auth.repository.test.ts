@@ -2,7 +2,9 @@ import type { Pool } from 'pg'
 import { describe, expect, it, vi } from 'vitest'
 import { consumeChallenge, issueChallenge, purgeExpiredChallenges } from './auth.repository'
 
-/** Pool stub. The repository only ever calls `query`. */
+/**
+ * Pool stub. The repository only ever calls `query`.
+ */
 function createDbStub(result: unknown): { db: Pool, query: ReturnType<typeof vi.fn> } {
   const query = vi.fn().mockResolvedValue(result)
 
@@ -21,13 +23,10 @@ describe('auth.repository', () => {
 
       const [sql, params] = query.mock.calls[0] as [string, unknown[]]
       expect(sql).toContain('INSERT INTO auth_challenge')
-      // Expiry computed by the db, never Date.now(), and the TTL bound as a
-      // parameter rather than interpolated
       expect(sql).toContain('now() + make_interval(secs => $4)')
       expect(params[1]).toBe('device-key')
       expect(params[2]).toBe('session')
       expect(params[3]).toBe(60)
-      // Fresh nonce, not one the caller passed in
       expect(params[0]).toMatch(/^[\w-]{43}$/)
     })
 
@@ -44,8 +43,6 @@ describe('auth.repository', () => {
 
       await consumeChallenge(db, 'n', 'device-key', 'session')
 
-      // Yes, four assertions against a SQL string. These are the four rules from the
-      // spec and a refactor that drops one would otherwise pass silently.
       const [sql] = query.mock.calls[0] as [string]
       expect(sql).toContain('used_at IS NULL')
       expect(sql).toContain('expires_at > now()')

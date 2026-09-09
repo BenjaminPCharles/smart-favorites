@@ -1,10 +1,6 @@
 import type { Pool } from 'pg'
 import { CHALLENGE_TTL_SECONDS, generateNonce } from './crypto/session-token'
 
-// Every statement that touches "user", user_device, user_session or auth_challenge.
-// No HTTP status, no signature check: the rules using them live in auth.service.ts.
-
-/** Bound at issuance, matched at consumption. Domain separation at the nonce level. */
 export type ChallengePurpose = 'session' | 'device-register'
 
 export interface IssuedChallenge {
@@ -18,7 +14,6 @@ export interface AccountRow {
 }
 
 export interface EnrollmentState {
-  /** Set when this device key is already active on this same account. */
   deviceUuid: string | null
   activeDevices: number
 }
@@ -33,12 +28,9 @@ export interface LiveSessionRow {
 }
 
 /**
- * We never check the key exists. A 404 on an unknown key would let anyone enumerate
- * public keys, and a nonce is useless without the private half. Fails later as a 401.
+ * Stores a nonce without checking the key exists, which would be an enumeration oracle.
  */
 export async function issueChallenge(db: Pool, publicKey: string, purpose: ChallengePurpose): Promise<IssuedChallenge> {
-  // TTL bound as a parameter, not interpolated. Constant today, but this is the one
-  // query that becomes an injection the day the value comes from the env.
   const result = await db.query<{ nonce: string, expires_at: Date }>(
     `INSERT INTO auth_challenge (nonce, public_key, purpose, expires_at)
      VALUES ($1, $2, $3, now() + make_interval(secs => $4))
@@ -55,9 +47,7 @@ export async function issueChallenge(db: Pool, publicKey: string, purpose: Chall
 }
 
 /**
- * One statement, so check and mark are atomic: a concurrent duplicate blocks on the
- * row lock then matches nothing. Unknown, used, expired and wrong key/purpose all
- * return the same false, so callers can't leak which it was.
+ * Atomically spends a nonce, returning the same false for every reason it can fail.
  */
 export async function consumeChallenge(db: Pool, nonce: string, publicKey: string, purpose: ChallengePurpose): Promise<boolean> {
   const result = await db.query(
@@ -76,8 +66,7 @@ export async function consumeChallenge(db: Pool, nonce: string, publicKey: strin
 }
 
 /**
- * Delete challenges that can no longer be spent. The 5 minute grace period just
- * keeps rows around long enough to be useful when debugging.
+ * Deletes challenges that can no longer be spent, after a short debugging grace period.
  */
 export async function purgeExpiredChallenges(db: Pool): Promise<number> {
   const result = await db.query(
@@ -87,7 +76,9 @@ export async function purgeExpiredChallenges(db: Pool): Promise<number> {
   return result.rowCount ?? 0
 }
 
-/** Without this, user_session grows by one row per silent renewal, forever. */
+/**
+ * Without this, user_session grows by one row per silent renewal, forever.
+ */
 export async function purgeExpiredSessions(db: Pool): Promise<number> {
   const result = await db.query(
     'DELETE FROM user_session WHERE expires_at < now() - interval \'1 hour\' OR revoked_at IS NOT NULL',
@@ -96,9 +87,10 @@ export async function purgeExpiredSessions(db: Pool): Promise<number> {
   return result.rowCount ?? 0
 }
 
-/** Null if the insert returned no row. Raises pg's unique violation, the caller turns it into a 409. */
+/**
+ * Null if the insert returned no row. Raises pg's unique violation, the caller turns it into a 409.
+ */
 export async function insertAccountWithDevice(db: Pool, masterPublicKey: string, devicePublicKey: string, label: string | null): Promise<AccountRow | null> {
-  // One statement, so user + first device are atomic without an explicit tx
   const result = await db.query<{ public_id: string, device_uuid: string }>(
     `WITH created_user AS (
        INSERT INTO "user" (master_public_key) VALUES ($1)
@@ -120,7 +112,9 @@ export async function insertAccountWithDevice(db: Pool, masterPublicKey: string,
   return row ? { publicId: row.public_id, deviceUuid: row.device_uuid } : null
 }
 
-/** Null for an unknown key and for a revoked device alike, so neither is nameable. */
+/**
+ * Null for an unknown key and for a revoked device alike, so neither is nameable.
+ */
 export async function findActiveDeviceId(db: Pool, devicePublicKey: string): Promise<number | null> {
   const result = await db.query<{ id: number }>(
     'SELECT id FROM user_device WHERE public_key = $1 AND revoked_at IS NULL',
@@ -138,11 +132,10 @@ export async function insertSession(db: Pool, deviceId: number, tokenHash: strin
   )
 }
 
-/** Null for an unknown account, a reached cap or an already registered key: findEnrollmentState tells them apart. */
+/**
+ * Enrolls a device under the cap, null covering unknown account, cap and known key alike.
+ */
 export async function insertDeviceWithinCap(db: Pool, masterPublicKey: string, devicePublicKey: string, label: string | null, maxActiveDevices: number): Promise<string | null> {
-  // Lookup, cap check and insert in one statement, so the happy path is one round
-  // trip. Doesn't fully close the race: under READ COMMITTED the count subquery
-  // takes no lock, so two calls can both land the 20th device. Fine for a soft cap.
   const result = await db.query<{ uuid: string }>(
     `WITH target_user AS (
        SELECT id FROM "user" WHERE master_public_key = $1
@@ -165,7 +158,9 @@ export async function insertDeviceWithinCap(db: Pool, masterPublicKey: string, d
   return result.rows[0]?.uuid ?? null
 }
 
-/** One query to tell an unknown account, a reached cap and an already-enrolled key apart. */
+/**
+ * One query to tell an unknown account, a reached cap and an already-enrolled key apart.
+ */
 export async function findEnrollmentState(db: Pool, masterPublicKey: string, devicePublicKey: string): Promise<EnrollmentState> {
   const result = await db.query<{ uuid: string | null, active_devices: string }>(
     `SELECT
@@ -185,14 +180,10 @@ export async function findEnrollmentState(db: Pool, masterPublicKey: string, dev
   }
 }
 
-/** The hot path. Null covers unknown, expired, revoked and revoked-device alike. */
+/**
+ * The hot path. Null covers unknown, expired, revoked and revoked-device alike.
+ */
 export async function findLiveSession(db: Pool, tokenHash: string): Promise<LiveSessionRow | null> {
-  // One round trip. A data-modifying CTE runs whether or not it's read, so nothing
-  // references `touched`. `d.revoked_at IS NULL` is what makes "revoking a device
-  // kills its sessions" true on the next request, don't drop it as an optimisation.
-
-  // last_used_at throttled to 5 min, otherwise it's a row lock and a WAL record per
-  // API call for a field only a "last seen" line in the UI reads.
   const result = await db.query<LiveSessionRow>(
     `WITH matched AS (
        SELECT

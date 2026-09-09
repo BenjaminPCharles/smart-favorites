@@ -10,13 +10,6 @@ import { favoriteRoutes } from './modules/favorite/favorite.routes'
 import { healthRoutes } from './modules/health/health.routes'
 import { dbPlugin } from './shared/db/db.plugin'
 
-// The whole server, assembled but not listening: that is what makes app.inject() possible in a test.
-
-/**
- * Never log a session token or an /auth/* body. Nothing leaks today, these paths
- * keep it that way if someone adds a custom serializer. Not disableRequestLogging
- * though, that would blind us where a traffic spike matters most.
- */
 const LOGGER_OPTIONS = {
   redact: {
     paths: ['req.headers.authorization', 'headers.authorization', 'sessionToken', '*.sessionToken', 'body'],
@@ -25,7 +18,6 @@ const LOGGER_OPTIONS = {
 }
 
 export interface BuildAppOptions {
-  /** Tests pass `false`, so a run stays readable. */
   logger?: FastifyServerOptions['logger']
 }
 
@@ -63,7 +55,6 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     allowedHeaders: ['Content-Type', 'Authorization'],
   })
 
-  // Rate limit before auth, so unauthenticated floods get throttled too
   await fastify.register(fastifyRateLimit, {
     max: 100,
     timeWindow: '1 minute',
@@ -72,8 +63,6 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   await fastify.register(authPlugin)
   await fastify.register(authCleanupPlugin)
 
-  // Nothing unhandled reaches the client. A pg unique violation carries a `detail`
-  // quoting the conflicting value, which an auth route must never echo back.
   fastify.setErrorHandler((error: FastifyError, request: FastifyRequest, reply: FastifyReply) => {
     request.log.error({ err: error }, 'Request failed')
     const statusCode = error.statusCode && error.statusCode < 500 ? error.statusCode : 500
