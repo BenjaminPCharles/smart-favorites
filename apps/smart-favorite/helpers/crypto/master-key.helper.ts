@@ -11,28 +11,24 @@ const MASTER_KEY_LENGTH = 32
 const MNEMONIC_STRENGTH_BITS = 128
 
 export interface MasterKey {
-  /** Ed25519, 32 raw bytes, base64url. This string is the JWK `x` the server imports. */
   publicKeyB64Url: string
   sign: (message: Uint8Array) => string
   destroy: () => void
 }
 
-/** 12 words: 128 bits of CSPRNG entropy plus the BIP39 checksum. */
+/**
+ * 12 words: 128 bits of CSPRNG entropy plus the BIP39 checksum.
+ */
 export function generateRecoveryMnemonic(): string {
   return generateMnemonic(wordlist, MNEMONIC_STRENGTH_BITS)
 }
 
 /**
- * Throws on a bad BIP39 checksum. The scalar stays in this closure, call destroy()
- * in a finally. mnemonicToSeedSync over mnemonicToEntropy for its 2048 PBKDF2
- * rounds, and no salt because this must work from the 12 words alone.
+ * Derives the master key from a mnemonic, throwing on a bad BIP39 checksum.
  */
 export function deriveMasterKey(mnemonic: string): MasterKey {
   const normalized = normalizeMnemonic(mnemonic)
 
-  // mnemonicToSeedSync checks the word count and the wordlist but *not* the
-  // checksum. Without this, one mistyped word derives a valid-looking key pointing
-  // at an account that doesn't exist. Backstop for validateMnemonicInput.
   if (!validateMnemonic(normalized, wordlist)) {
     throw new Error('Invalid recovery phrase')
   }
@@ -56,9 +52,7 @@ export function deriveMasterKey(mnemonic: string): MasterKey {
     },
 
     /**
-     * Clears the only long-lived reference, so a later heap snapshot holds no key.
-     * Not a guarantee though: the mnemonic is an immutable string alive until GC,
-     * @noble allocates blocks we can't reach, and V8 may have moved this array.
+     * Clears the only long-lived reference to the scalar, best effort against a heap snapshot.
      */
     destroy(): void {
       privateKey.fill(0)

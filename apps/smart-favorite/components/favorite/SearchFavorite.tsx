@@ -29,7 +29,6 @@ export function SearchFavorite(): React.ReactNode {
   }
 
   function handleSearchClick(): void {
-    // TODO: hook this up to the real search endpoint
   }
 
   return (

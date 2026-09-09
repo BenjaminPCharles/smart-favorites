@@ -1,25 +1,33 @@
 import type { Querier } from '../../shared/db/querier'
 
-export interface NewChunk {
+export interface NewChunks {
   favoriteId: number
   userId: number
+  contents: string[]
+}
+
+export interface PendingChunk {
+  id: number
   content: string
 }
 
-/** user_id is duplicated from favorite on purpose: it carries the composite FK and the search filter. */
-export async function insertPendingChunk(db: Querier, chunk: NewChunk): Promise<number> {
-  // embedding stays NULL here, filled in once HuggingFace answers
-  const result = await db.query<{ id: number }>(
+/**
+ * Inserts the chunks of one favorite with their embedding still null.
+ */
+export async function insertPendingChunks(db: Querier, chunks: NewChunks): Promise<PendingChunk[]> {
+  const result = await db.query<PendingChunk>(
     `INSERT INTO favorite_chunk (favorite_id, user_id, content)
-     VALUES ($1, $2, $3)
-     RETURNING id`,
-    [chunk.favoriteId, chunk.userId, chunk.content],
+     SELECT $1, $2, content FROM unnest($3::text[]) AS content
+     RETURNING id, content`,
+    [chunks.favoriteId, chunks.userId, chunks.contents],
   )
 
-  return result.rows[0]!.id
+  return result.rows
 }
 
-/** pgvector parses the array from its text form, which is exactly what JSON.stringify emits. */
+/**
+ * Fills in a chunk embedding once HuggingFace has answered.
+ */
 export async function updateChunkEmbedding(db: Querier, chunkId: number, embedding: number[]): Promise<void> {
   await db.query(
     'UPDATE favorite_chunk SET embedding = $2 WHERE id = $1',

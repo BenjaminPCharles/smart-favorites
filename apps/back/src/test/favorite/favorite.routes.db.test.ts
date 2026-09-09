@@ -5,8 +5,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, inject, it } from 'v
 import { generateSessionToken, hashSessionToken, SESSION_TTL_SECONDS } from '../../modules/auth/crypto/session-token'
 import { createTestPool, testDatabaseConfig, truncateAll } from '../db.helper'
 
-/** The wiring, not the SQL: that `request.user.id` is set by the time the handler runs. */
-describe.skipIf(!inject('dbReady'))('favoriteRoutes, POST /favorites', () => {
+describe.skipIf(!inject('dbReady'))('favoriteRoutes', () => {
   let db: Pool
   let app: FastifyInstance
 
@@ -16,7 +15,6 @@ describe.skipIf(!inject('dbReady'))('favoriteRoutes, POST /favorites', () => {
     content: 'page text',
   }
 
-  /** The app builds its own pool from SERVICE_DB_*, so point those at the throwaway database. */
   beforeAll(async () => {
     process.env.SERVICE_DB_HOST = String(testDatabaseConfig.host)
     process.env.SERVICE_DB_PORT = String(testDatabaseConfig.port)
@@ -39,7 +37,9 @@ describe.skipIf(!inject('dbReady'))('favoriteRoutes, POST /favorites', () => {
     await db?.end()
   })
 
-  /** A live session for a brand new account, which is all the auth hook needs to resolve a user. */
+  /**
+   * A live session for a brand new account, all the auth hook needs to resolve a user.
+   */
   async function seedSession(): Promise<{ token: string, userId: number }> {
     const user = await db.query<{ id: number }>(
       `INSERT INTO "user" (master_public_key) VALUES ($1) RETURNING id`,
@@ -69,7 +69,6 @@ describe.skipIf(!inject('dbReady'))('favoriteRoutes, POST /favorites', () => {
       method: 'POST',
       url: '/favorites',
       headers: { authorization: `Bearer ${token}` },
-      // A user_id in the body must change nothing: the handler reads the session, not this.
       payload: { ...body, user_id: userId + 999 },
     })
 
@@ -83,8 +82,7 @@ describe.skipIf(!inject('dbReady'))('favoriteRoutes, POST /favorites', () => {
     expect(rows[0]?.url).toBe(body.url)
   })
 
-  /** HF_TOKEN is unset under vitest, so the chunk stays pending and no network call is made. */
-  it('writes a pending chunk holding the title and the content', async () => {
+  it('writes the title and the content as separate pending chunks', async () => {
     const { token, userId } = await seedSession()
 
     await app.inject({
@@ -95,19 +93,93 @@ describe.skipIf(!inject('dbReady'))('favoriteRoutes, POST /favorites', () => {
     })
 
     const { rows } = await db.query<{
-      favorite_id: number
       user_id: number
       content: string
       embedding: string | null
     }>(
-      `SELECT c.favorite_id, c.user_id, c.content, c.embedding
-         FROM favorite_chunk c JOIN favorite f ON f.id = c.favorite_id`,
+      `SELECT c.user_id, c.content, c.embedding
+         FROM favorite_chunk c JOIN favorite f ON f.id = c.favorite_id
+        ORDER BY c.id`,
     )
 
-    expect(rows).toHaveLength(1)
-    expect(rows[0]?.user_id).toBe(userId)
-    expect(rows[0]?.content).toBe(`${body.title}\n\n${body.content}`)
-    expect(rows[0]?.embedding).toBeNull()
+    expect(rows.map(row => row.content)).toEqual([body.title, body.content])
+    expect(rows.every(row => row.user_id === userId)).toBe(true)
+    expect(rows.every(row => row.embedding === null)).toBe(true)
+  })
+
+  it('splits a long page into chunks the embedding model can read whole', async () => {
+    const { token } = await seedSession()
+    const sentence = `${'word '.repeat(40).trim()}. `
+
+    await app.inject({
+      method: 'POST',
+      url: '/favorites',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { ...body, content: sentence.repeat(30) },
+    })
+
+    const { rows } = await db.query<{ content: string }>(
+      'SELECT content FROM favorite_chunk ORDER BY id',
+    )
+
+    expect(rows.length).toBeGreaterThan(5)
+    expect(Math.max(...rows.map(row => row.content.length))).toBeLessThanOrEqual(900)
+  })
+
+  it('splits content that carries no sentence punctuation', async () => {
+    const { token } = await seedSession()
+
+    await app.inject({
+      method: 'POST',
+      url: '/favorites',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { ...body, content: 'x'.repeat(3000) },
+    })
+
+    const { rows } = await db.query<{ content: string }>(
+      'SELECT content FROM favorite_chunk ORDER BY id',
+    )
+
+    expect(rows[0]?.content).toBe(body.title)
+    expect(rows.length).toBeGreaterThan(3)
+    expect(Math.max(...rows.map(row => row.content.length))).toBeLessThanOrEqual(900)
+  })
+
+  it('saves a favorite whose page could not be scraped', async () => {
+    const { token } = await seedSession()
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/favorites',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { ...body, content: null },
+    })
+
+    expect(response.statusCode).toBe(201)
+
+    const { rows } = await db.query<{ content: string }>('SELECT content FROM favorite_chunk')
+    expect(rows.map(row => row.content)).toEqual([body.title])
+  })
+
+  it.each([
+    ['a non-http scheme', { ...body, url: 'javascript:alert(1)' }],
+    ['a url over the length cap', { ...body, url: `https://example.com/${'a'.repeat(2048)}` }],
+    ['content over the length cap', { ...body, content: 'a'.repeat(20_001) }],
+    ['an empty title', { ...body, title: '' }],
+  ])('rejects %s without writing anything', async (_case, payload) => {
+    const { token } = await seedSession()
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/favorites',
+      headers: { authorization: `Bearer ${token}` },
+      payload,
+    })
+
+    expect(response.statusCode).toBe(400)
+
+    const { rows } = await db.query<{ count: string }>('SELECT count(*) FROM favorite')
+    expect(rows[0]?.count).toBe('0')
   })
 
   it('leaves no orphan chunk when the save conflicts', async () => {
@@ -123,13 +195,12 @@ describe.skipIf(!inject('dbReady'))('favoriteRoutes, POST /favorites', () => {
     await app.inject(request)
 
     const { rows } = await db.query<{ count: string }>('SELECT count(*) FROM favorite_chunk')
-    expect(rows[0]?.count).toBe('1')
+    expect(rows[0]?.count).toBe('2')
   })
 
   it('rejects an anonymous save before the handler runs', async () => {
     const response = await app.inject({ method: 'POST', url: '/favorites', payload: body })
 
-    // 401 and not a 500 on `request.user.id`: what the route's non-null typing rests on
     expect(response.statusCode).toBe(401)
 
     const { rows } = await db.query<{ count: string }>('SELECT count(*) FROM favorite')
@@ -170,5 +241,79 @@ describe.skipIf(!inject('dbReady'))('favoriteRoutes, POST /favorites', () => {
       'SELECT user_id FROM favorite ORDER BY user_id',
     )
     expect(rows.map(row => row.user_id)).toEqual([first.userId, second.userId])
+  })
+
+  describe('existence check, POST /favorites/lookup', () => {
+    /**
+     * Saves the shared body for this session through the API.
+     */
+    async function seedFavorite(token: string): Promise<void> {
+      await app.inject({
+        method: 'POST',
+        url: '/favorites',
+        headers: { authorization: `Bearer ${token}` },
+        payload: body,
+      })
+    }
+
+    async function askExists(token: string, url: string): Promise<{ statusCode: number, exists?: boolean }> {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/favorites/lookup',
+        payload: { url },
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      return {
+        statusCode: response.statusCode,
+        exists: (response.json() as { exists?: boolean }).exists,
+      }
+    }
+
+    it('answers false for a url this user never saved', async () => {
+      const { token } = await seedSession()
+
+      expect(await askExists(token, body.url)).toEqual({ statusCode: 200, exists: false })
+    })
+
+    it('answers true once the url is saved', async () => {
+      const { token } = await seedSession()
+      await seedFavorite(token)
+
+      expect(await askExists(token, body.url)).toEqual({ statusCode: 200, exists: true })
+    })
+
+    it('does not report another user\'s favorite', async () => {
+      const owner = await seedSession()
+      const other = await seedSession()
+      await seedFavorite(owner.token)
+
+      expect(await askExists(other.token, body.url)).toEqual({ statusCode: 200, exists: false })
+    })
+
+    it('rejects an anonymous check', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/favorites/lookup',
+        payload: { url: body.url },
+      })
+
+      expect(response.statusCode).toBe(401)
+    })
+
+    it('rejects a missing, malformed or non-http url without reaching the database', async () => {
+      const { token } = await seedSession()
+
+      expect((await askExists(token, 'not-a-url')).statusCode).toBe(400)
+      expect((await askExists(token, 'javascript:alert(1)')).statusCode).toBe(400)
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/favorites/lookup',
+        payload: {},
+        headers: { authorization: `Bearer ${token}` },
+      })
+      expect(response.statusCode).toBe(400)
+    })
   })
 })

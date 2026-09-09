@@ -6,9 +6,7 @@ const DEVICE_KEY_ALGORITHM: EcKeyGenParams = { name: 'ECDSA', namedCurve: 'P-256
 const DEVICE_SIGN_ALGORITHM: EcdsaParams = { name: 'ECDSA', hash: 'SHA-256' }
 
 /**
- * Non-extractable, so an infostealer copying the profile finds no usable string. Not
- * an enclave though, our own context can still sign with it. Split from
- * createDeviceKey because the callers need opposite orderings, see restoreDevice.
+ * Generates a non-extractable device key, so a copied profile yields no usable string.
  */
 export async function generateDeviceKey(): Promise<StoredDeviceKey> {
   const keyPair = await crypto.subtle.generateKey(DEVICE_KEY_ALGORITHM, false, ['sign', 'verify'])
@@ -22,8 +20,7 @@ export async function generateDeviceKey(): Promise<StoredDeviceKey> {
 }
 
 /**
- * Written before any network call, so an interrupted onboarding can't leave behind
- * an account whose key exists nowhere.
+ * Generates a device key and persists it before any network call can orphan it.
  */
 export async function createDeviceKey(): Promise<StoredDeviceKey> {
   const deviceKey = await generateDeviceKey()
@@ -33,15 +30,15 @@ export async function createDeviceKey(): Promise<StoredDeviceKey> {
   return deviceKey
 }
 
-/** Reads the device key, generating and persisting one on first run. */
+/**
+ * Reads the device key, generating and persisting one on first run.
+ */
 export async function getOrCreateDeviceKey(): Promise<StoredDeviceKey> {
   return await readDeviceKey() ?? await createDeviceKey()
 }
 
 /**
- * Base64url signature. WebCrypto emits raw r||s, 64 bytes, which is what the
- * server's `dsaEncoding: 'ieee-p1363'` eats. The tests pin that length because the
- * day it becomes ~70 the server rejects everything without saying so.
+ * Signs a message as the raw 64-byte r||s the server decodes as ieee-p1363.
  */
 export async function signWithDeviceKey(privateKey: CryptoKey, message: Uint8Array<ArrayBuffer>): Promise<string> {
   const signature = await crypto.subtle.sign(DEVICE_SIGN_ALGORITHM, privateKey, message)

@@ -8,18 +8,13 @@ import {
 } from './auth.schema'
 import { createAccount, enrollDevice, issueAuthChallenge, openSession } from './auth.service'
 
-// Wire layer only: parse, delegate to auth.service.ts, map a status to a code.
-
 /**
- * Two rules here: never pass `request.body` to `request.log.*`, never return zod
- * issues. Both echo request content, see the `redact` config in app.ts.
+ * The auth routes, none of which may echo request content into a response or the logs.
  */
-
-// INVALID_REQUEST and UNAUTHORIZED live in shared/http/errors.ts: every module has to send
-// the exact same bytes, and telling the causes of a 401 apart is an enumeration oracle.
-
 export function authRoutes(fastify: FastifyInstance): void {
-  /** Create an account from a master public key plus a first device key. */
+  /**
+   * Create an account from a master public key plus a first device key.
+   */
   fastify.post('/auth/init', {
     config: {
       rateLimit: {
@@ -50,7 +45,9 @@ export function authRoutes(fastify: FastifyInstance): void {
     return reply.code(401).send(UNAUTHORIZED)
   })
 
-  /** Single-use nonce, for a device key (open a session) or a master key (enroll a device). */
+  /**
+   * Single-use nonce, for a device key (open a session) or a master key (enroll a device).
+   */
   fastify.post('/auth/challenge', {
     config: {
       rateLimit: {
@@ -69,7 +66,9 @@ export function authRoutes(fastify: FastifyInstance): void {
     return reply.send({ nonce: issued.nonce, expiresAt: issued.expiresAt.toISOString() })
   })
 
-  /** Exchange a signed challenge for an opaque session token. */
+  /**
+   * Exchange a signed challenge for an opaque session token.
+   */
   fastify.post('/auth/session', {
     config: {
       rateLimit: {
@@ -92,7 +91,9 @@ export function authRoutes(fastify: FastifyInstance): void {
     return reply.code(401).send(UNAUTHORIZED)
   })
 
-  /** Enroll a new device key on an existing account. Public: the master signature is the auth. */
+  /**
+   * Enroll a new device key on an existing account. Public: the master signature is the auth.
+   */
   fastify.post('/auth/device', {
     config: {
       rateLimit: {
@@ -112,7 +113,9 @@ export function authRoutes(fastify: FastifyInstance): void {
       return reply.code(201).send({ deviceUuid: result.deviceUuid })
     }
 
-    // A retry after a network timeout isn't an error, so this is a 200 and not a 409
+    /**
+     * A retry after a network timeout isn't an error, so this is a 200 and not a 409
+     */
     if (result.status === 'already-enrolled') {
       return reply.send({ deviceUuid: result.deviceUuid })
     }
@@ -125,8 +128,7 @@ export function authRoutes(fastify: FastifyInstance): void {
   })
 
   /**
-   * Cheapest "is my session alive" probe, and the smoke test for the whole chain.
-   * The onRequest hook does the auth, so getting here means the session is good.
+   * Cheapest probe that a session is alive, the onRequest hook having already done the auth.
    */
   fastify.get('/auth/verify', async (request: FastifyRequest, reply: FastifyReply) => {
     return reply.send({ publicId: request.user.publicId, deviceUuid: request.user.deviceUuid })

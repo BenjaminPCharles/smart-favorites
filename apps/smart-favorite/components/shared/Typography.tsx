@@ -9,37 +9,31 @@ interface TypographyProps {
 }
 
 const variantStyles: Record<TypographyVariant, React.CSSProperties> = {
-  // Standard text
   body: {
     fontSize: fontSizes.base,
     color: colors.textPrimary,
     lineHeight: 1.5,
   },
-  // Slightly dimmed secondary text
   secondary: {
     fontSize: fontSizes.md,
     color: colors.textSecondary,
     lineHeight: 1.5,
   },
-  // Helper / warning text
   helper: {
     fontSize: fontSizes.sm,
     color: colors.textMuted,
     lineHeight: 1.6,
   },
-  // Very dimmed, for metadata
   dim: {
     fontSize: fontSizes.sm,
     color: colors.textDim,
     lineHeight: 1.5,
   },
-  // Tiny label (badge, timestamp)
   caption: {
     fontSize: fontSizes.xs,
     color: colors.textDim,
     lineHeight: 1.4,
   },
-  // Key / value display, monospace
   code: {
     fontSize: fontSizes.lg,
     color: colors.textPrimary,

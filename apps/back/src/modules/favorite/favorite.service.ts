@@ -1,41 +1,53 @@
 import type { FastifyBaseLogger } from 'fastify'
 import type { Pool } from 'pg'
+import type { PendingChunk } from './favorite-chunk.repository'
 import type { Favorite } from './favorite.schema'
 import { embed, isEmbeddingEnabled } from '../embedding/embedding.service'
-import { insertPendingChunk, updateChunkEmbedding } from './favorite-chunk.repository'
-import { insertFavorite } from './favorite.repository'
+import { insertPendingChunks, updateChunkEmbedding } from './favorite-chunk.repository'
+import { hasFavorite, insertFavorite } from './favorite.repository'
 
 export type CreateFavoriteResult
   = | { status: 'created' }
     | { status: 'conflict' }
 
-/** Conflict rather than an error: re-saving a page the user already has is a no-op, not a failure. */
+const CHUNK_BUDGET = 900
+const CHUNK_OVERLAP = 150
+
+/**
+ * Saves a page and starts embedding it, reporting a conflict when the user already has it.
+ */
 export async function createFavorite(
   db: Pool,
   log: FastifyBaseLogger,
   userId: number,
   input: Favorite,
 ): Promise<CreateFavoriteResult> {
-  const content = chunkContent(input)
-  const chunkId = await saveFavoriteWithChunk(db, userId, input, content)
+  const chunks = await saveFavoriteWithChunks(db, userId, input)
 
-  if (chunkId === null) {
+  if (chunks === null) {
     return { status: 'conflict' }
   }
 
-  // Detached on purpose: the save is already durable, and HuggingFace must never hold the response.
-  void embedChunk(db, log, chunkId, content)
+  void embedChunks(db, log, chunks)
 
   return { status: 'created' }
 }
 
-/** Both rows or neither: a favorite with no chunk is invisible to search and to any retry query. */
-async function saveFavoriteWithChunk(
+/**
+ * True when the url is already in this user's favorites.
+ */
+export async function isFavoriteSaved(db: Pool, userId: number, url: string): Promise<boolean> {
+  return hasFavorite(db, userId, url)
+}
+
+/**
+ * Writes the favorite and all its chunks in one transaction, or nothing at all.
+ */
+async function saveFavoriteWithChunks(
   db: Pool,
   userId: number,
   input: Favorite,
-  content: string,
-): Promise<number | null> {
+): Promise<PendingChunk[] | null> {
   const client = await db.connect()
 
   try {
@@ -45,7 +57,6 @@ async function saveFavoriteWithChunk(
       userId,
       url: input.url,
       title: input.title,
-      content: input.content,
     })
 
     if (!favorite) {
@@ -53,18 +64,17 @@ async function saveFavoriteWithChunk(
       return null
     }
 
-    const chunkId = await insertPendingChunk(client, {
+    const chunks = await insertPendingChunks(client, {
       favoriteId: favorite.id,
       userId,
-      content,
+      contents: chunkContents(input),
     })
 
     await client.query('COMMIT')
 
-    return chunkId
+    return chunks
   }
   catch (error) {
-    // Swallowed: a rollback that fails on a dead connection must not replace the real error.
     await client.query('ROLLBACK').catch(() => {})
     throw error
   }
@@ -73,22 +83,90 @@ async function saveFavoriteWithChunk(
   }
 }
 
-/** One chunk per favorite for now. Title first, so a save without scraped content still embeds something. */
-function chunkContent(input: Favorite): string {
-  return input.content ? `${input.title}\n\n${input.content}` : input.title
+/**
+ * The passages to embed, the title kept apart as the highest-signal text a favorite has.
+ */
+function chunkContents(input: Favorite): string[] {
+  return [input.title, ...(input.content ? splitIntoChunks(input.content) : [])]
 }
 
-/** Runs after the 201 went out. A failure leaves `embedding NULL`, which is what a retry looks for. */
-async function embedChunk(db: Pool, log: FastifyBaseLogger, chunkId: number, content: string): Promise<void> {
+/**
+ * Packs sentences into chunks the embedding model can read whole.
+ */
+function splitIntoChunks(content: string): string[] {
+  const chunks: string[] = []
+  let current = ''
+
+  for (const piece of splitSentences(content)) {
+    if (!current) {
+      current = piece
+      continue
+    }
+
+    if (current.length + 1 + piece.length <= CHUNK_BUDGET) {
+      current = `${current} ${piece}`
+      continue
+    }
+
+    chunks.push(current)
+
+    const overlap = overlapOf(current)
+    current = overlap.length + 1 + piece.length <= CHUNK_BUDGET ? `${overlap} ${piece}` : piece
+  }
+
+  if (current) {
+    chunks.push(current)
+  }
+
+  return chunks
+}
+
+/**
+ * Splits content into sentences, each already short enough to fit a chunk.
+ */
+function splitSentences(content: string): string[] {
+  const pieces: string[] = []
+
+  for (const sentence of content.match(/[^.!?]+[.!?]*\s*/g) ?? [content]) {
+    const trimmed = sentence.trim()
+
+    for (let start = 0; start < trimmed.length; start += CHUNK_BUDGET) {
+      pieces.push(trimmed.slice(start, start + CHUNK_BUDGET))
+    }
+  }
+
+  return pieces
+}
+
+/**
+ * The tail of a chunk, cut back to a word boundary, to repeat at the head of the next one.
+ */
+function overlapOf(chunk: string): string {
+  if (chunk.length <= CHUNK_OVERLAP) {
+    return chunk
+  }
+
+  const tail = chunk.slice(-CHUNK_OVERLAP)
+  const boundary = tail.indexOf(' ')
+
+  return boundary === -1 ? tail : tail.slice(boundary + 1)
+}
+
+/**
+ * Embeds each chunk in turn after the response went out, leaving failures null.
+ */
+async function embedChunks(db: Pool, log: FastifyBaseLogger, chunks: PendingChunk[]): Promise<void> {
   if (!isEmbeddingEnabled()) {
-    log.warn({ chunkId }, 'HF_TOKEN unset, favorite chunk left unembedded')
+    log.warn({ chunkCount: chunks.length }, 'HF_TOKEN unset, favorite chunks left unembedded')
     return
   }
 
-  try {
-    await updateChunkEmbedding(db, chunkId, await embed(content))
-  }
-  catch (error) {
-    log.error({ err: error, chunkId }, 'Failed to embed favorite chunk')
+  for (const chunk of chunks) {
+    try {
+      await updateChunkEmbedding(db, chunk.id, await embed(chunk.content))
+    }
+    catch (error) {
+      log.error({ err: error, chunkId: chunk.id }, 'Failed to embed favorite chunk')
+    }
   }
 }

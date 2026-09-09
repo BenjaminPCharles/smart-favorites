@@ -1,9 +1,14 @@
 import { z } from 'zod'
 
-/** Unknown keys are stripped, so the extension can keep sending favIconUrl and lastAccessed. */
+const savableUrl = z.url({ protocol: /^https?$/ }).max(2048)
+
 export const favoriteSchema = z.object({
-  url: z.url(),
-  title: z.string(),
-  content: z.string().nullable(),
+  url: savableUrl,
+  title: z.string().min(1).max(512),
+  content: z.string().max(20_000).nullable(),
 })
 export type Favorite = z.infer<typeof favoriteSchema>
+
+export const favoriteLookupSchema = z.object({
+  url: savableUrl,
+})

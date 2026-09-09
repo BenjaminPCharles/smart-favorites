@@ -2,7 +2,6 @@ import type { Pool } from 'pg'
 import { afterAll, beforeEach, describe, expect, inject, it } from 'vitest'
 import { createTestPool, truncateAll } from './db.helper'
 
-/** Self-test of the harness: the three assumptions every future database test rests on. */
 describe.skipIf(!inject('dbReady'))('db.helper', () => {
   let db: Pool
 
@@ -32,8 +31,6 @@ describe.skipIf(!inject('dbReady'))('db.helper', () => {
   })
 
   it('serves pgvector 0.8.x, so hnsw.iterative_scan is available', async () => {
-    // The version is an acceptance criterion of P0-1, and testing against a different one
-    // would prove nothing about what production runs.
     const { rows } = await db.query<{ extversion: string }>(
       `SELECT extversion FROM pg_extension WHERE extname = 'vector'`,
     )
@@ -52,8 +49,6 @@ describe.skipIf(!inject('dbReady'))('db.helper', () => {
     const { rows } = await db.query<{ count: string }>('SELECT count(*) FROM "user"')
     expect(rows[0]?.count).toBe('0')
 
-    // RESTART IDENTITY: the next row is id 1 again, so no test can depend on an id left
-    // over from another one.
     const reinserted = await db.query<{ id: number }>(
       `INSERT INTO "user" (master_public_key) VALUES ('harness-probe') RETURNING id`,
     )
@@ -61,8 +56,6 @@ describe.skipIf(!inject('dbReady'))('db.helper', () => {
   })
 
   it('cascades the truncate through the foreign keys', async () => {
-    // `favorite_chunk` references `favorite` which references `user`. A TRUNCATE without
-    // CASCADE would error out here rather than clean up.
     const user = await db.query<{ id: number }>(
       `INSERT INTO "user" (master_public_key) VALUES ('cascade-probe') RETURNING id`,
     )

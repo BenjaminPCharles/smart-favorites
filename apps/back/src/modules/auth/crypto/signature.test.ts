@@ -10,7 +10,9 @@ import {
 
 const MESSAGE = Buffer.from('smart-favorites:v1:session:key:nonce', 'utf8')
 
-/** Master keypair in the wire format the extension sends: raw 32-byte Ed25519, base64url. */
+/**
+ * Master keypair in the wire format the extension sends: raw 32-byte Ed25519, base64url.
+ */
 function createMasterKeyPair(): { publicKey: string, sign: (message: Buffer) => string } {
   const { publicKey, privateKey } = generateKeyPairSync('ed25519')
   const jwk = publicKey.export({ format: 'jwk' }) as { x: string }
@@ -21,7 +23,9 @@ function createMasterKeyPair(): { publicKey: string, sign: (message: Buffer) => 
   }
 }
 
-/** Device keypair, wire format: P-256 SPKI DER base64url, ieee-p1363 signatures. */
+/**
+ * Device keypair, wire format: P-256 SPKI DER base64url, ieee-p1363 signatures.
+ */
 function createDeviceKeyPair(): { publicKey: string, sign: (message: Buffer) => string, signDer: (message: Buffer) => string } {
   const { publicKey, privateKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
 
@@ -57,9 +61,6 @@ describe('signature.helper', () => {
     })
 
     it('refuses small-order keys, which verify without a private key', () => {
-      // Node verifies cofactorlessly, so under a small-order key an all-zero
-      // signature verifies over some messages. All 8 canonical encodings have to be
-      // refused at import, before verify() is ever reached.
       const smallOrder = [
         '0000000000000000000000000000000000000000000000000000000000000000',
         '0000000000000000000000000000000000000000000000000000000000000080',
@@ -79,8 +80,6 @@ describe('signature.helper', () => {
     })
 
     it('refuses a non-canonical field element, which encodes the same points', () => {
-      // y = p (2^255 - 19) reduces to 0, an order-4 point. A blacklist of canonical
-      // encodings alone wouldn't catch this one.
       const nonCanonical = Buffer.alloc(32)
       nonCanonical.writeBigUInt64LE(0xFFFFFFFFFFFFFFEDn, 0)
       nonCanonical.fill(0xFF, 8, 31)
@@ -113,9 +112,6 @@ describe('signature.helper', () => {
     })
 
     it('rejects an ASN.1 DER signature', () => {
-      // WebCrypto emits raw r||s. Lose `dsaEncoding: ieee-p1363` on either side and
-      // node produces ~70 bytes of DER, every request 401s and nothing says why.
-      // This test is the noise.
       const device = createDeviceKeyPair()
       const der = device.signDer(MESSAGE)
 
@@ -138,7 +134,6 @@ describe('signature.helper', () => {
       const p384Spki = p384.export({ format: 'der', type: 'spki' })
 
       expect(importDevicePublicKey(p384Spki.toString('base64url'))).toBeNull()
-      // Right length, garbage bytes. createPublicKey throws, we return null
       expect(importDevicePublicKey(Buffer.alloc(91, 1).toString('base64url'))).toBeNull()
     })
   })

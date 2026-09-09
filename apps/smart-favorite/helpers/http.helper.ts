@@ -7,11 +7,6 @@ export class AuthError extends Error {
   }
 }
 
-/**
- * No device key in IndexedDB, nothing can be signed. Extends AuthError so existing
- * `instanceof AuthError` call sites keep working, while the UI can still tell this
- * apart from an expired session.
- */
 export class DeviceMissingError extends AuthError {
   constructor() {
     super('No device key on this browser')
@@ -19,7 +14,6 @@ export class DeviceMissingError extends AuthError {
   }
 }
 
-/** The server refused the device key itself: unknown, or revoked. */
 export class DeviceRejectedError extends AuthError {
   constructor() {
     super('This device is no longer authorised')
@@ -34,7 +28,9 @@ export class ApiError extends Error {
   }
 }
 
-/** Tolerates an empty body (204, or an error that came back without one). */
+/**
+ * Tolerates an empty body (204, or an error that came back without one).
+ */
 async function readBody(response: Response): Promise<unknown> {
   const text = await response.text()
   if (!text) {
@@ -50,9 +46,7 @@ async function readBody(response: Response): Promise<unknown> {
 }
 
 /**
- * Non-2xx becomes a throw. `url` is absolute, `token` omitted for public routes.
- * This module knows nothing about auth, it just uses a token if handed one, which is
- * what lets the session layer call it without an import cycle.
+ * Fetches and turns any non-2xx into a throw, using a token only if handed one.
  */
 export async function request<TResponse, TBody = undefined>(url: string, method: string, token?: string, body?: TBody): Promise<TResponse> {
   const response = await fetch(url, {
