@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { accountCreateMessage, deviceRegisterMessage, sessionMessage } from './message'
+import { accountCreateMessage, deviceRegisterMessage, sessionMessage } from '../../../modules/auth/crypto/message'
 
 const MASTER = 'bWFzdGVyLXB1YmxpYy1rZXk'
 const DEVICE = 'ZGV2aWNlLXB1YmxpYy1rZXk'
 const NONCE = 'bm9uY2U'
 
-describe('auth-message.helper', () => {
+describe('SUCCESS', () => {
   it('builds the account-create golden vector', () => {
     expect(accountCreateMessage(MASTER, DEVICE).toString('utf8'))
       .toBe('smart-favorites:v1:account-create:bWFzdGVyLXB1YmxpYy1rZXk:ZGV2aWNlLXB1YmxpYy1rZXk')
@@ -20,7 +20,9 @@ describe('auth-message.helper', () => {
     expect(deviceRegisterMessage(MASTER, DEVICE, NONCE).toString('utf8'))
       .toBe('smart-favorites:v1:device-register:bWFzdGVyLXB1YmxpYy1rZXk:ZGV2aWNlLXB1YmxpYy1rZXk:bm9uY2U')
   })
+})
 
+describe('ERROR', () => {
   it('separates domains: the same parts under two usages give different messages', () => {
     expect(sessionMessage(DEVICE, NONCE).equals(accountCreateMessage(DEVICE, NONCE))).toBe(false)
   })

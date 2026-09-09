@@ -5,9 +5,9 @@ import {
   generateSessionToken,
   hashSessionToken,
   sessionTokenMatchesHash,
-} from './session-token'
+} from '../../../modules/auth/crypto/session-token'
 
-describe('session-token', () => {
+describe('SUCCESS', () => {
   it('generates 32 bytes of base64url, never twice the same', () => {
     const token = generateSessionToken()
 
@@ -25,10 +25,17 @@ describe('session-token', () => {
     expect(hashSessionToken(token)).not.toBe(hashSessionToken(generateSessionToken()))
   })
 
-  it('matches a token against its own hash and nothing else', () => {
+  it('matches a token against its own hash', () => {
     const token = generateSessionToken()
 
     expect(sessionTokenMatchesHash(token, hashSessionToken(token))).toBe(true)
+  })
+})
+
+describe('ERROR', () => {
+  it('never matches a token against another token hash', () => {
+    const token = generateSessionToken()
+
     expect(sessionTokenMatchesHash(generateSessionToken(), hashSessionToken(token))).toBe(false)
   })
 

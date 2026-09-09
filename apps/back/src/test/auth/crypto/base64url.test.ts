@@ -1,20 +1,29 @@
 import { Buffer } from 'node:buffer'
 import { randomBytes } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
-import { decodeCanonicalBase64url } from './base64url'
+import { decodeCanonicalBase64url } from '../../../modules/auth/crypto/base64url'
 
-describe('base64url', () => {
+describe('SUCCESS', () => {
   it('decodes a canonical 43-char string to 32 bytes', () => {
     const bytes = randomBytes(32)
     const decoded = decodeCanonicalBase64url(bytes.toString('base64url'), 32)
 
     expect(decoded).not.toBeNull()
     expect(decoded?.equals(bytes)).toBe(true)
+    expect(decodeCanonicalBase64url('A'.repeat(43), 32)).not.toBeNull()
   })
 
+  it('round-trips the wire lengths this app uses', () => {
+    for (const size of [32, 64, 91]) {
+      const bytes = randomBytes(size)
+      expect(decodeCanonicalBase64url(bytes.toString('base64url'), size)?.equals(bytes)).toBe(true)
+    }
+  })
+})
+
+describe('ERROR', () => {
   it('rejects a non-canonical encoding of the right byte length', () => {
     expect(Buffer.from(`${'A'.repeat(42)}B`, 'base64url')).toHaveLength(32)
-    expect(decodeCanonicalBase64url('A'.repeat(43), 32)).not.toBeNull()
     expect(decodeCanonicalBase64url(`${'A'.repeat(42)}B`, 32)).toBeNull()
   })
 
@@ -35,12 +44,5 @@ describe('base64url', () => {
 
   it('rejects an empty string', () => {
     expect(decodeCanonicalBase64url('', 32)).toBeNull()
-  })
-
-  it('round-trips the two wire lengths this app uses', () => {
-    for (const size of [32, 64, 91]) {
-      const bytes = randomBytes(size)
-      expect(decodeCanonicalBase64url(bytes.toString('base64url'), size)?.equals(bytes)).toBe(true)
-    }
   })
 })

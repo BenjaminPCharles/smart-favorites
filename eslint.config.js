@@ -31,6 +31,13 @@ export default antfu({
   jsonc: false,
   yaml: false,
 }, {
+  files: ['**/*.test.ts'],
+  name: 'tests/success-error-suites',
+  rules: {
+    // Every test file splits into describe('SUCCESS') and describe('ERROR'), so titles are uppercase on purpose.
+    'test/prefer-lowercase-title': 'off',
+  },
+}, {
   files: ['apps/smart-favorite/**/*.{ts,tsx}'],
   name: 'smart-favorite/browser',
   rules: {
